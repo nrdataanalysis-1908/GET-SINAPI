@@ -9,7 +9,7 @@ from getsinapi.normalizers import classify_price, parse_decimal
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        (0, Decimal("0")),
+        (0, Decimal(0)),
         (0.0, Decimal("0.0")),
         ("1.234,56", Decimal("1234.56")),
         ("R$ 12,50", Decimal("12.50")),
@@ -29,7 +29,7 @@ def test_empty_price_remains_missing(value):
 
 def test_reported_zero_is_not_missing():
     price, status = classify_price(0)
-    assert price == Decimal("0")
+    assert price == Decimal(0)
     assert status == PriceStatus.REPORTED_ZERO
 
 
