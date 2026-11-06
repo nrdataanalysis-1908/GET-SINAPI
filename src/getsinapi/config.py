@@ -20,7 +20,7 @@ class Settings:
     http_backoff_seconds: float
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         data_dir = Path(os.getenv("GETSINAPI_DATA_DIR", "data"))
         settings = cls(
             environment=os.getenv("GETSINAPI_ENV", "development").strip().lower(),
