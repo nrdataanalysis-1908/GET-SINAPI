@@ -10,7 +10,6 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
 
