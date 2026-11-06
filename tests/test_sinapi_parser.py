@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from openpyxl import Workbook
 
 from getsinapi.domain import PriceStatus, Regime
@@ -24,7 +22,7 @@ def test_parser_reads_rows_and_preserves_zero_and_missing(tmp_path):
     assert result.uf == "MG"
     assert len(result.records) == 2
     assert result.records[0].code == "000123"
-    assert result.records[0].price == Decimal("0")
+    assert result.records[0].price == 0
     assert result.records[0].status == PriceStatus.REPORTED_ZERO
     assert result.records[1].price is None
     assert result.records[1].status == PriceStatus.MISSING
