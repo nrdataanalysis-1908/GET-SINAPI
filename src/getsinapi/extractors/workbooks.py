@@ -22,8 +22,17 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _json_value(value):
+    """Converte valores de células para tipos serializáveis sem alterar seu significado."""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
 def inspect_workbook(path: Path) -> dict:
-    """Retorna metadados das abas sem alterar ou inferir conteúdo de negócio."""
+    """Retorna metadados e amostra técnica das abas, sem inferir conteúdo de negócio."""
     try:
         workbook = load_workbook(path, read_only=True, data_only=True)
     except (BadZipFile, OSError, ValueError) as exc:
@@ -32,11 +41,23 @@ def inspect_workbook(path: Path) -> dict:
     sheets = []
     try:
         for worksheet in workbook.worksheets:
+            preview = []
+            for row in worksheet.iter_rows(
+                min_row=1,
+                max_row=min(worksheet.max_row or 0, 12),
+                min_col=1,
+                max_col=min(worksheet.max_column or 0, 20),
+                values_only=True,
+            ):
+                values = [_json_value(value) for value in row]
+                if any(value is not None and value != "" for value in values):
+                    preview.append(values)
             sheets.append({
                 "name": worksheet.title,
                 "max_row": worksheet.max_row,
                 "max_column": worksheet.max_column,
                 "state": worksheet.sheet_state,
+                "preview_rows": preview,
             })
     finally:
         workbook.close()
