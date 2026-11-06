@@ -41,6 +41,8 @@ def test_inspect_workbook_reports_sheet_metadata(tmp_path):
 
     assert result["sheets"][0]["name"] == "Insumos Não Desonerados"
     assert result["sheets"][0]["max_row"] == 2
+    assert result["sheets"][0]["preview_rows"][0] == ["Código", "Descrição", "Unidade", "Preço"]
+    assert result["sheets"][0]["preview_rows"][1][-1] == 0
     assert result["sha256"]
 
 
