@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from getsinapi.domain import PriceStatus
