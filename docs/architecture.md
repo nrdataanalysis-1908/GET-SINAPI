@@ -53,3 +53,15 @@ O GET-SINAPI buscará paridade funcional, sem replicar defeitos identificados.
 ## Critério de qualidade
 
 Nenhuma competência será marcada como concluída apenas porque o processo terminou sem exceção. Validaremos arquivos esperados, planilhas encontradas, registros lidos/rejeitados, duplicidades, UFs, regimes e integridade referencial. Dados ausentes nunca serão preenchidos com valores inventados.
+
+
+## 7. Fonte oficial e ressalva de preços
+
+A página oficial da CAIXA informa que, a partir de 2025, os relatórios mensais são distribuídos em dois ZIPs: XLSX e PDF. O ZIP XLSX reúne relatórios de famílias e coeficientes, manutenções, percentual de mão de obra e relatórios de insumos/composições para todas as UFs. O ZIP PDF reúne relatórios analíticos, custos de composições e preços de insumos.
+
+O padrão de URL XLSX observado no catálogo do PulseSINAPI é:
+https://www.caixa.gov.br/Downloads/sinapi-relatorios-mensais/SINAPI-AAAA-MM-formato-xlsx.zip
+
+A URL deve ser tratada como padrão técnico observado e validada em cada execução; não se deve presumir que toda competência esteja publicada.
+
+A CAIXA publicou nota informando que, desde a referência outubro/2025, os valores de preços de insumos e custos das composições seriam excepcionalmente divulgados zerados em razão da indisponibilidade mensal dos dados de preços do IBGE. O pipeline deve preservar essa condição como status de disponibilidade, sem converter ausência de preço em preço economicamente igual a zero.
