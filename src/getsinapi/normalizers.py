@@ -1,4 +1,5 @@
 """Normalização conservadora de valores e observações de preço SINAPI."""
+
 from __future__ import annotations
 
 import re
