@@ -24,7 +24,9 @@ HEADER_ALIASES = {
     "price": {"preco", "preco mediano", "custo"},
     "status": {"situacao", "observacao", "status", "nota"},
 }
-UF_PATTERN = re.compile(r"\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b")
+UF_PATTERN = re.compile(
+    r"\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +108,11 @@ def parse_worksheet(
 
         if header_row is None:
             return SheetParseResult(
-                sheet_name, regime, None, None, (),
+                sheet_name,
+                regime,
+                None,
+                None,
+                (),
                 ("Cabeçalho não reconhecido; layout requer mapeamento explícito.",),
             )
 
