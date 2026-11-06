@@ -45,11 +45,13 @@ class PriceObservation:
             raise ValueError("Código SINAPI não pode ser vazio.")
         if self.source_row < 1:
             raise ValueError("Linha de origem deve ser maior ou igual a 1.")
-        if self.status in {PriceStatus.REPORTED, PriceStatus.REPORTED_ZERO} and self.price is None:
+        reported = {PriceStatus.REPORTED, PriceStatus.REPORTED_ZERO}
+        absent = {PriceStatus.MISSING, PriceStatus.NOT_RESEARCHED}
+        if self.status in reported and self.price is None:
             raise ValueError("Preço informado exige valor numérico.")
-        if self.status == PriceStatus.REPORTED_ZERO and self.price != Decimal("0"):
+        if self.status == PriceStatus.REPORTED_ZERO and self.price != Decimal(0):
             raise ValueError("Status reported_zero exige preço igual a zero.")
-        if self.status == PriceStatus.REPORTED and self.price == Decimal("0"):
+        if self.status == PriceStatus.REPORTED and self.price == Decimal(0):
             raise ValueError("Preço zero deve usar status reported_zero.")
-        if self.status in {PriceStatus.MISSING, PriceStatus.NOT_RESEARCHED} and self.price is not None:
+        if self.status in absent and self.price is not None:
             raise ValueError("Preço ausente ou não pesquisado não pode conter valor.")
