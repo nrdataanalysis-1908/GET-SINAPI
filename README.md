@@ -56,7 +56,7 @@ Atenção: a CAIXA publicou nota sobre valores de preços/custos zerados excepci
 
 Etapa 1 — fundação técnica: estrutura do pacote, configuração, documentação arquitetural e CI inicial.
 
-As etapas seguintes serão implementadas progressivamente: catálogo de fontes oficiais, coletor, extração, normalização, persistência histórica, API e automação agendada.
+A extração segura e o catálogo inicial de planilhas XLSX já estão implementados. O catálogo registra arquivos, abas, dimensões e SHA-256; a interpretação semântica das colunas ainda será desenvolvida e validada com arquivos oficiais reais.\n\nAs etapas seguintes serão implementadas progressivamente: catálogo de fontes oficiais, coletor, extração, normalização, persistência histórica, API e automação agendada.
 
 ## Desenvolvimento
 
@@ -70,6 +70,7 @@ Comandos PowerShell:
     pip install -e ".[dev]"
     pytest
     getsinapi --version
+    getsinapi extract --archive data/raw/SINAPI-2026-09-formato-xlsx.zip --reference 2026-09
 
 ## Referência técnica
 
