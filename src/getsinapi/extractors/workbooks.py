@@ -5,6 +5,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+import re
 from zipfile import BadZipFile
 
 from openpyxl import load_workbook
@@ -42,7 +43,7 @@ def inspect_workbook(path: Path) -> dict:
 
     return {
         "file": path.name,
-        "relative_path": path.as_posix(),
+        "relative_path": path.name,
         "size_bytes": path.stat().st_size,
         "sha256": _sha256(path),
         "sheets": sheets,
@@ -55,7 +56,7 @@ def extract_and_catalog(
     settings: Settings | None = None,
 ) -> dict:
     """Extrai um pacote oficial e gera catálogo JSON reproduzível."""
-    if len(reference) != 7 or reference[4] != "-" or not reference[:4].isdigit() or not reference[5:].isdigit():
+    if not re.fullmatch(r"\\d{4}-(0[1-9]|1[0-2])", reference):
         raise ValueError("Competência inválida. Informe AAAA-MM.")
 
     archive_path = Path(archive_path)
