@@ -94,13 +94,15 @@ def parse_worksheet(
         header_row = None
         columns: dict[str, int] = {}
         uf: str | None = None
+        context_rows: list[Any] = []
 
         for row_number, row in enumerate(rows, start=1):
+            context_rows.extend(row)
             candidate = _column_map(tuple(row))
             if {"code", "description", "unit", "price"}.issubset(candidate):
                 header_row = row_number
                 columns = candidate
-                uf = detect_uf(*row)
+                uf = detect_uf(*context_rows)
                 break
 
         if header_row is None:
