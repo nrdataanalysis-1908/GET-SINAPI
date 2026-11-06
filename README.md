@@ -42,6 +42,16 @@ Construir uma base histórica confiável de insumos e composições SINAPI, com 
 - src/getsinapi: coletores, extratores, processadores, storage, API e observabilidade.
 - tests: testes unitários e de integração.
 
+## Coleta inicial
+
+O pacote XLSX mensal pode ser obtido por competência explícita:
+
+    getsinapi download --reference 2026-09
+
+O coletor valida o formato ZIP, calcula SHA-256, grava o arquivo original em data/raw e cria um manifesto em data/manifests. A competência é informada explicitamente; não presumimos que o mês corrente já esteja publicado.
+
+Atenção: a CAIXA publicou nota sobre valores de preços/custos zerados excepcionalmente desde a referência 2025-10. O parser deverá manter essa condição distinta de preço real igual a zero.
+
 ## Estado do projeto
 
 Etapa 1 — fundação técnica: estrutura do pacote, configuração, documentação arquitetural e CI inicial.
