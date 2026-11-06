@@ -8,13 +8,12 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook
 
-from getsinapi.domain import PriceObservation, PriceStatus, Regime
+from getsinapi.domain import PriceObservation, Regime
 from getsinapi.normalizers import classify_price
 
 
