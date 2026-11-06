@@ -3,6 +3,7 @@
 A detecção de colunas é conservadora: só mapeia cabeçalhos conhecidos.
 Nenhuma coluna ou regime é inferido apenas pela posição da coluna.
 """
+
 from __future__ import annotations
 
 import re
