@@ -64,4 +64,4 @@ https://www.caixa.gov.br/Downloads/sinapi-relatorios-mensais/SINAPI-AAAA-MM-form
 
 A URL deve ser tratada como padrão técnico observado e validada em cada execução; não se deve presumir que toda competência esteja publicada.
 
-A CAIXA publicou nota informando que, desde a referência outubro/2025, os valores de preços de insumos e custos das composições seriam excepcionalmente divulgados zerados em razão da indisponibilidade mensal dos dados de preços do IBGE. O pipeline deve preservar essa condição como status de disponibilidade, sem converter ausência de preço em preço economicamente igual a zero.
+A nota oficial consultada registra que, a partir da referência outubro/2025, preços de insumos e custos de composições seriam excepcionalmente divulgados zerados em razão da indisponibilidade mensal dos dados de preços do IBGE. Como essa nota pode ser sucedida por atualizações posteriores, a vigência deve ser verificada por competência nas notas oficiais e no próprio pacote. O pipeline deve preservar preço informado como zero, preço ausente e preço indisponível como estados distintos; nunca inferir preço de mercado a partir de zero.
