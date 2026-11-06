@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
-import re
 from zipfile import BadZipFile
 
 from openpyxl import load_workbook
@@ -56,7 +56,7 @@ def extract_and_catalog(
     settings: Settings | None = None,
 ) -> dict:
     """Extrai um pacote oficial e gera catálogo JSON reproduzível."""
-    if not re.fullmatch(r"\\d{4}-(0[1-9]|1[0-2])", reference):
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", reference):
         raise ValueError("Competência inválida. Informe AAAA-MM.")
 
     archive_path = Path(archive_path)
