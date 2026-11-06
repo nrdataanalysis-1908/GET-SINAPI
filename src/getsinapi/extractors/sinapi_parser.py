@@ -6,11 +6,11 @@ Nenhuma coluna ou regime é inferido apenas pela posição da coluna.
 
 from __future__ import annotations
 
-import re
-import unicodedata
 from dataclasses import dataclass
+import re
 from pathlib import Path
 from typing import Any
+import unicodedata
 
 from openpyxl import load_workbook
 
