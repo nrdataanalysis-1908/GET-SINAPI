@@ -23,7 +23,7 @@ def parse_decimal(value: Any) -> Decimal | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
     if isinstance(value, bool):
-        raise ValueError("Booleano não é um valor monetário válido.")
+        raise TypeError("Booleano não é um valor monetário válido.")
     if isinstance(value, Decimal):
         return value
     if isinstance(value, int):
@@ -58,6 +58,6 @@ def classify_price(value: Any, source_status: Any = None) -> tuple[Decimal | Non
     parsed = parse_decimal(value)
     if parsed is None:
         return None, PriceStatus.MISSING
-    if parsed == Decimal("0"):
+    if parsed == Decimal(0):
         return parsed, PriceStatus.REPORTED_ZERO
     return parsed, PriceStatus.REPORTED
