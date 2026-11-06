@@ -17,7 +17,6 @@ from openpyxl import load_workbook
 from getsinapi.domain import PriceObservation, Regime
 from getsinapi.normalizers import classify_price
 
-
 HEADER_ALIASES = {
     "code": {"codigo", "cod", "codigo do insumo", "codigo da composicao"},
     "description": {"descricao", "descricao do insumo", "descricao da composicao"},
