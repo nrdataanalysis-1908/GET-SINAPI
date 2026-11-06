@@ -7,7 +7,7 @@ import re
 import time
 import zipfile
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -109,7 +109,7 @@ def download_monthly_xlsx(
         path=target,
         sha256=digest,
         size_bytes=len(payload),
-        downloaded_at=datetime.now(timezone.utc).isoformat(),
+        downloaded_at=datetime.now(UTC).isoformat(),
     )
     manifest_dir = settings.manifest_dir
     manifest_dir.mkdir(parents=True, exist_ok=True)
