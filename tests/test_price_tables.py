@@ -31,7 +31,7 @@ def make_price_workbook(path, sheet_name="ISD"):
     sheet.cell(row=11, column=4, value="KG")
     sheet.cell(row=11, column=5, value="C")
     sheet.cell(row=11, column=18, value=0)
-    sheet.cell(row=11, column=19, value=12.34)
+    sheet.cell(row=11, column=30, value=12.34)
     workbook.save(path)
 
 
