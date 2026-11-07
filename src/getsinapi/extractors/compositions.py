@@ -100,8 +100,9 @@ def parse_analytic_compositions(
         sheet = workbook[sheet_name]
 
         header = [_text(sheet.cell(row=10, column=column).value) for column in range(1, 9)]
-        expected = ("codigo", "tipo", "descricao", "unidade")
-        if not any("tipo" == value for value in header) or not any(
+        required_headers = {1: "codigo", 2: "tipo", 4: "descricao", 5: "unidade", 6: "coeficiente"}
+        if any(not header[index] or expected not in header[index]
+               for index, expected in required_headers.items()) or not any(
             "situacao" in value or "status" in value for value in header
         ):
             raise ValueError("Cabeçalho do relatório Analítico não reconhecido na linha 10.")
