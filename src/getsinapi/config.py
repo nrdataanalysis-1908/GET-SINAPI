@@ -1,6 +1,7 @@
 """Configuração centralizada e validada por variáveis de ambiente."""
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,8 +45,15 @@ class Settings:
             raise ValueError("GETSINAPI_HTTP_TIMEOUT deve ser maior que zero.")
         if self.http_max_retries < 0:
             raise ValueError("GETSINAPI_HTTP_MAX_RETRIES não pode ser negativo.")
-        if self.http_backoff_seconds < 0:
-            raise ValueError("GETSINAPI_HTTP_BACKOFF_SECONDS não pode ser negativo.")
+        if (
+            isinstance(self.http_backoff_seconds, bool)
+            or not isinstance(self.http_backoff_seconds, (int, float))
+            or not math.isfinite(self.http_backoff_seconds)
+            or self.http_backoff_seconds < 0
+        ):
+            raise ValueError(
+                "GETSINAPI_HTTP_BACKOFF_SECONDS deve ser finito e não negativo."
+            )
 
     def create_data_directories(self) -> None:
         for directory in (self.raw_dir, self.staging_dir, self.processed_dir, self.manifest_dir):
