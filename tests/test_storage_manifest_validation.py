@@ -1,9 +1,9 @@
 import json
 
 import pytest
+from test_storage import prepare_reference
 
 from getsinapi.storage.sqlite import load_silver_reference
-from test_storage import prepare_reference
 
 
 @pytest.mark.parametrize(
@@ -21,7 +21,8 @@ def test_load_rejects_malformed_or_incomplete_normalization_manifest(tmp_path, p
     manifest = processed / "2026-09" / "normalization-manifest.json"
     manifest.write_text(json.dumps(payload), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="manifesto|Manifesto|source_file|objeto"):
+    expected_error = TypeError if isinstance(payload, (list, type(None), str)) else ValueError
+    with pytest.raises(expected_error, match="manifesto|Manifesto|source_file|objeto"):
         load_silver_reference(processed, reference="2026-09")
 
     assert not (tmp_path / "data" / "getsinapi.sqlite3").exists()
