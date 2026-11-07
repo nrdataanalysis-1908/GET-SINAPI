@@ -108,12 +108,12 @@ def summary(reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$")) -> 
     return {"reference": reference, **rows[0]}
 
 
-@app.get("/api/insumos", tags=["Insumos"], summary="Consulta preços de insumos")
 def _escape_like(value: str) -> str:
     """Escape SQLite LIKE metacharacters so search terms remain literal."""
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+@app.get("/api/insumos", tags=["Insumos"], summary="Consulta preços de insumos")
 def list_input_prices(
     reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
     uf: str = Query(..., min_length=2, max_length=2),
