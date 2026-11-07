@@ -3,7 +3,7 @@ import {
   Activity,
   ArrowDownToLine,
   Boxes,
-  ChartNoAxesCombined,
+  ChartColumn,
   CircleHelp,
   Database,
   FileSpreadsheet,
@@ -20,7 +20,7 @@ const navigation = [
   { label: "Visão geral", icon: Gauge, active: true },
   { label: "Insumos", icon: Boxes, active: false },
   { label: "Composições", icon: Layers3, active: false },
-  { label: "Comparador", icon: ChartNoAxesCombined, active: false },
+  { label: "Comparador", icon: ChartColumn, active: false },
   { label: "Importações", icon: ArrowDownToLine, active: false },
 ];
 
@@ -107,7 +107,7 @@ function App() {
               <div className="stage-connector pending" />
               <div className="pipeline-stage pending-stage"><span className="stage-icon"><ShieldCheck size={19} /></span><strong>Silver</strong><small>Dados normalizados</small><em>Em desenvolvimento</em></div>
               <div className="stage-connector pending" />
-              <div className="pipeline-stage pending-stage"><span className="stage-icon"><ChartNoAxesCombined size={19} /></span><strong>Gold</strong><small>Consultas e análises</small><em>Planejado</em></div>
+              <div className="pipeline-stage pending-stage"><span className="stage-icon"><ChartColumn size={19} /></span><strong>Gold</strong><small>Consultas e análises</small><em>Planejado</em></div>
             </div>
             <div className="panel-note"><Activity size={15} /><span>O fluxo exibido representa o estágio de implementação, não uma execução em tempo real.</span></div>
           </section>
