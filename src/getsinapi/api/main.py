@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
 from getsinapi import __version__
+from getsinapi.domain import CompositionStatus, EncargoMode, PriceStatus, Regime
+from getsinapi.extractors.compositions import CompositionItemRecord, CompositionRecord
+from getsinapi.extractors.price_tables import InputPriceRecord
+from getsinapi.services.costing import BudgetItem, CompositionCostCalculator
 
 
 app = FastAPI(
@@ -26,6 +33,19 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+class BudgetLineRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=40)
+    item_type: str = Field(pattern="^(INSUMO|COMPOSICAO)$")
+    quantity: Decimal = Field(ge=0)
+
+
+class BudgetRequest(BaseModel):
+    reference: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    uf: str = Field(min_length=2, max_length=2)
+    regime: Regime | None = Regime.NAO_DESONERADO
+    encargo_mode: EncargoMode = EncargoMode.COM_ENCARGOS
+    items: list[BudgetLineRequest] = Field(min_length=1, max_length=500)
 
 
 def _database_path() -> Path:
