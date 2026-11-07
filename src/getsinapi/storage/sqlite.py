@@ -111,7 +111,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"JSONL inválido em {path.name}, linha {line_number}.") from exc
             if not isinstance(record, dict):
-                raise ValueError(f"Registro JSONL deve ser objeto: {path.name}:{line_number}.")
+                raise TypeError(f"Registro JSONL deve ser objeto: {path.name}:{line_number}.")
             records.append(record)
     return records
 
