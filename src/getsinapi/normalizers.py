@@ -45,35 +45,33 @@ def parse_decimal(value: Any) -> Decimal | None:
         raise TypeError("Booleano não é um valor monetário válido.")
 
     if isinstance(value, Decimal):
-        return value
+        result = value
+    elif isinstance(value, int):
+        result = Decimal(value)
+    elif isinstance(value, float):
+        result = Decimal(str(value))
+    else:
+        raw = str(value).strip()
 
-    if isinstance(value, int):
-        return Decimal(value)
+        if not raw:
+            return None
 
-    if isinstance(value, float):
-        return Decimal(str(value))
+        raw = raw.replace("R$", "").replace(" ", "")
 
-    raw = str(value).strip()
-
-    if not raw:
-        return None
-
-    raw = raw.replace("R$", "").replace(" ", "")
-
-    if "," in raw and "." in raw:
-        if raw.rfind(",") > raw.rfind("."):
+        if "," in raw and "." in raw:
+            if raw.rfind(",") > raw.rfind("."):
+                raw = raw.replace(".", "").replace(",", ".")
+            else:
+                raw = raw.replace(",", "")
+        elif "," in raw:
             raw = raw.replace(".", "").replace(",", ".")
-        else:
-            raw = raw.replace(",", "")
-    elif "," in raw:
-        raw = raw.replace(".", "").replace(",", ".")
 
-    try:
-        result = Decimal(raw)
-    except InvalidOperation as exc:
-        raise ValueError(
-            f"Valor numérico inválido: {value!r}"
-        ) from exc
+        try:
+            result = Decimal(raw)
+        except InvalidOperation as exc:
+            raise ValueError(
+                f"Valor numérico inválido: {value!r}"
+            ) from exc
 
     if not result.is_finite():
         raise ValueError(
