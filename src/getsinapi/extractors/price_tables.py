@@ -1,7 +1,7 @@
 """Parser específico para as tabelas matriciais de preços de insumos SINAPI.
 
-Layout auditado: cabeçalho de UFs na linha 9, cabeçalho de campos na linha 10
-e registros a partir da linha 11. As colunas F:AF representam as 27 UFs.
+Layout auditado no XLSX oficial: cabeçalhos dos campos e das UFs na linha 10,
+com registros a partir da linha 11. As colunas F:AF representam as 27 UFs.
 """
 from __future__ import annotations
 
@@ -90,18 +90,18 @@ def parse_input_price_table(
             raise ValueError(f"Aba inexistente: {sheet_name}")
         sheet = workbook[sheet_name]
 
-        # Streaming sequencial evita acesso aleatório custoso em read_only.
-        rows = sheet.iter_rows(min_row=9, max_col=32, values_only=True)
-        uf_row = next(rows, ())
+        # No XLSX oficial, os rótulos dos campos e as UFs compartilham a linha 10.
+        # Streaming sequencial mantém compatibilidade com read_only=True.
+        rows = sheet.iter_rows(min_row=10, max_col=32, values_only=True)
         header_row = next(rows, ())
         uf_columns = [
             (column, state)
-            for column, value in enumerate(uf_row, start=1)
+            for column, value in enumerate(header_row, start=1)
             if column >= 6 and (state := _uf(value)) is not None
         ]
         if len(uf_columns) != 27 or len({state for _, state in uf_columns}) != 27:
             raise ValueError(
-                f"Mapa de UFs inválido na linha 9: {len(uf_columns)} colunas reconhecidas."
+                f"Mapa de UFs inválido na linha 10: {len(uf_columns)} colunas reconhecidas."
             )
 
         headers = [str(value or "").strip().casefold() for value in header_row[:5]]
