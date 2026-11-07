@@ -8,9 +8,9 @@ from getsinapi.extractors.price_tables import parse_input_price_table
 
 
 UFs = [
-    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT",
-    "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO",
-    "RR", "SC", "SP", "SE", "TO",
+    "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG",
+    "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR",
+    "RS", "SC", "SE", "SP", "TO",
 ]
 
 
@@ -18,20 +18,19 @@ def make_price_workbook(path, sheet_name="ISD"):
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = sheet_name
-    sheet.cell(row=9, column=1, value="UF")
-    for column, uf in enumerate(UFs, start=6):
-        sheet.cell(row=9, column=column, value=uf)
     for column, value in enumerate(
         ["Classificação", "Código", "Descrição", "Unidade", "Origem"], start=1
     ):
         sheet.cell(row=10, column=column, value=value)
+    for column, uf in enumerate(UFs, start=6):
+        sheet.cell(row=10, column=column, value=uf)
     sheet.cell(row=11, column=1, value="01")
     sheet.cell(row=11, column=2, value="00001379")
     sheet.cell(row=11, column=3, value="Cimento Portland")
     sheet.cell(row=11, column=4, value="KG")
     sheet.cell(row=11, column=5, value="C")
-    sheet.cell(row=11, column=18, value=0)
-    sheet.cell(row=11, column=30, value=12.34)
+    sheet.cell(row=11, column=17, value=0)
+    sheet.cell(row=11, column=31, value=12.34)
     workbook.save(path)
 
 
@@ -69,7 +68,6 @@ def test_ise_is_not_misclassified_as_a_third_desoneration_regime(tmp_path):
     result = parse_input_price_table(path, "ISE", reference="2026-09")
     assert result.records[0].regime is None
     assert result.records[0].encargo_mode == EncargoMode.SEM_ENCARGOS
-
 
 
 def test_icd_maps_to_desonerated_with_social_charges(tmp_path):
