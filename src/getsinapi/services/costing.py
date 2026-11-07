@@ -106,7 +106,13 @@ class CompositionCostCalculator:
         self.uf = normalized_uf
         self.regime = regime
         self.encargo_mode = encargo_mode
-        self.compositions = {record.code: record for record in compositions}
+        self.compositions: dict[str, CompositionRecord] = {}
+        for record in compositions:
+            if record.reference != reference:
+                continue
+            if record.code in self.compositions:
+                raise ValueError(f"Composição duplicada na competência {reference}: {record.code}.")
+            self.compositions[record.code] = record
         self.items: dict[str, list[CompositionItemRecord]] = {}
         for item in composition_items:
             if item.reference != reference:
