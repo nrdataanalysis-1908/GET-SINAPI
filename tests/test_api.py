@@ -49,10 +49,10 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
         connection.execute(
             """INSERT INTO composition_items(
                 reference, composition_code, item_code, item_type, description,
-                unit, coefficient, source_file, source_sheet, source_row
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                unit, coefficient, status, source_file, source_sheet, source_row
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             ("2026-09", "104658", "1379", "INSUMO", "Cimento Portland",
-             "KG", "2.5", "SINAPI.xlsx", "Analítico", 12),
+             "KG", "2.5", "com_preco", "SINAPI.xlsx", "Analítico", 12),
         )
 
     monkeypatch.setenv("GETSINAPI_DATABASE_PATH", str(database))
@@ -81,6 +81,7 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
     )
     assert items.status_code == 200
     assert items.json()[0]["coefficient"] == "2.5"
+    assert items.json()[0]["status"] == "com_preco"
 
     composition_cost = client.get(
         "/api/composicoes/104658/custo",

@@ -1,7 +1,10 @@
+import hashlib
 import json
 import sqlite3
 
-from getsinapi.storage.sqlite import load_silver_reference
+import pytest
+
+from getsinapi.storage.sqlite import initialize_database, load_silver_reference
 
 
 def write_jsonl(path, rows):
@@ -11,19 +14,16 @@ def write_jsonl(path, rows):
     )
 
 
-def prepare_reference(root, reference, price_code):
+def prepare_reference(root, reference, price_code, *, regime="nao_desonerado", table_type="ISD"):
     folder = root / reference
     folder.mkdir(parents=True)
-    manifest = {"reference": reference, "source_file": f"SINAPI_{reference}.xlsx"}
-    (folder / "normalization-manifest.json").write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
     write_jsonl(folder / "input_prices.jsonl", [{
         "reference": reference, "code": price_code, "description": "Cimento",
-        "unit": "KG", "uf": "MG", "regime": "nao_desonerado",
-        "encargo_mode": "com_encargos", "table_type": "ISD", "price": "10.25",
+        "unit": "KG", "uf": "MG", "regime": regime,
+        "encargo_mode": "sem_encargos" if table_type == "ISE" else "com_encargos",
+        "table_type": table_type, "price": "10.25",
         "status": "reported", "price_origin": "C", "source_file": "source.xlsx",
-        "source_sheet": "ISD", "source_row": 11,
+        "source_sheet": table_type, "source_row": 11,
     }])
     write_jsonl(folder / "compositions.jsonl", [{
         "reference": reference, "code": "100", "description": "Composição",
@@ -33,9 +33,26 @@ def prepare_reference(root, reference, price_code):
     write_jsonl(folder / "composition_items.jsonl", [{
         "reference": reference, "composition_code": "100", "item_code": price_code,
         "item_type": "INSUMO", "description": "Cimento", "unit": "KG",
-        "coefficient": "2", "source_file": "source.xlsx",
+        "coefficient": "2", "status": "com_preco", "source_file": "source.xlsx",
         "source_sheet": "Analítico", "source_row": 12,
     }])
+    artifacts = []
+    for filename in ("input_prices.jsonl", "compositions.jsonl", "composition_items.jsonl"):
+        payload = (folder / filename).read_bytes()
+        artifacts.append({
+            "file": filename,
+            "records": sum(1 for line in payload.splitlines() if line.strip()),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "size_bytes": len(payload),
+        })
+    manifest = {
+        "reference": reference,
+        "source_file": f"SINAPI_{reference}.xlsx",
+        "artifacts": artifacts,
+    }
+    (folder / "normalization-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
 
 
 def test_load_is_idempotent_and_preserves_other_competences(tmp_path):
@@ -74,3 +91,98 @@ def test_load_rejects_manifest_competence_mismatch(tmp_path):
         assert "diverge" in str(exc)
     else:
         raise AssertionError("Esperava rejeição da competência divergente.")
+
+
+
+def test_load_validates_silver_artifact_hash_before_database_write(tmp_path):
+    processed = tmp_path / "data" / "processed"
+    prepare_reference(processed, "2026-09", "002")
+    artifact_path = processed / "2026-09" / "compositions.jsonl"
+    payload = artifact_path.read_bytes()
+    artifact_path.write_bytes(payload.replace(b'"100"', b'"101"', 1))
+
+    try:
+        load_silver_reference(processed, reference="2026-09")
+    except ValueError as exc:
+        assert "SHA-256 divergente" in str(exc)
+    else:
+        raise AssertionError("Esperava rejeição de artefato Silver adulterado.")
+
+    assert not (tmp_path / "data" / "getsinapi.sqlite3").exists()
+
+
+def test_load_persists_component_official_status(tmp_path):
+    processed = tmp_path / "data" / "processed"
+    prepare_reference(processed, "2026-09", "002")
+
+    load_silver_reference(processed, reference="2026-09")
+
+    database = sqlite3.connect(tmp_path / "data" / "getsinapi.sqlite3")
+    try:
+        status = database.execute(
+            "SELECT status FROM composition_items WHERE reference = '2026-09'"
+        ).fetchone()[0]
+        assert status == "com_preco"
+    finally:
+        database.close()
+
+
+def test_null_regime_price_natural_key_is_unique(tmp_path):
+    processed = tmp_path / "data" / "processed"
+    prepare_reference(
+        processed, "2026-09", "002", regime=None, table_type="ISE"
+    )
+    load_silver_reference(processed, reference="2026-09")
+
+    database = sqlite3.connect(tmp_path / "data" / "getsinapi.sqlite3")
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            database.execute(
+                """INSERT INTO input_prices(
+                    reference, code, description, unit, uf, regime, encargo_mode,
+                    table_type, price, status, price_origin, source_file,
+                    source_sheet, source_row
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    "2026-09", "002", "Cimento", "KG", "MG", None,
+                    "sem_encargos", "ISE", "10.25", "reported", "C",
+                    "source.xlsx", "ISE", 11,
+                ),
+            )
+    finally:
+        database.close()
+
+
+
+def test_initialize_database_migrates_existing_component_items_table(tmp_path):
+    database_path = tmp_path / "legacy.sqlite3"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute(
+            """CREATE TABLE composition_items (
+                id INTEGER PRIMARY KEY,
+                reference TEXT NOT NULL,
+                composition_code TEXT NOT NULL,
+                item_code TEXT NOT NULL,
+                item_type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                unit TEXT NOT NULL,
+                coefficient TEXT NOT NULL,
+                source_file TEXT NOT NULL,
+                source_sheet TEXT NOT NULL,
+                source_row INTEGER NOT NULL
+            )"""
+        )
+    finally:
+        connection.close()
+
+    initialize_database(database_path)
+
+    database = sqlite3.connect(database_path)
+    try:
+        columns = {
+            row[1] for row in database.execute("PRAGMA table_info(composition_items)")
+        }
+        assert "status" in columns
+    finally:
+        database.close()
