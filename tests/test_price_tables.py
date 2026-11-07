@@ -99,3 +99,11 @@ def test_parser_rejects_invalid_reference(tmp_path):
 
     with pytest.raises(ValueError, match="Competência inválida"):
         parse_input_price_table(path, "ISD", reference="2026-13")
+
+
+def test_parser_rejects_invalid_reference_before_reading_rows(tmp_path):
+    path = tmp_path / "SINAPI_ISD_2026_09.xlsx"
+    make_price_workbook(path)
+
+    with pytest.raises(ValueError, match="Competência inválida"):
+        parse_input_price_table(path, "ISD", reference="2026-13")
