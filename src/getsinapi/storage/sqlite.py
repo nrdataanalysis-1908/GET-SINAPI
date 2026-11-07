@@ -6,12 +6,12 @@ pode preservar tabelas, chaves naturais e semântica de carga.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
 from pathlib import Path
 from typing import Any
-
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS composition_items (
     description TEXT NOT NULL,
     unit TEXT NOT NULL,
     coefficient TEXT NOT NULL,
+    status TEXT,
     source_file TEXT NOT NULL,
     source_sheet TEXT NOT NULL,
     source_row INTEGER NOT NULL,
@@ -94,9 +95,46 @@ def connect(database_path: str | Path) -> sqlite3.Connection:
     return connection
 
 
+def _ensure_schema(connection: sqlite3.Connection) -> None:
+    connection.executescript(SCHEMA)
+
+    item_columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(composition_items)")
+    }
+    if "status" not in item_columns:
+        connection.execute("ALTER TABLE composition_items ADD COLUMN status TEXT")
+
+    duplicate = connection.execute(
+        """SELECT reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type,
+                  COUNT(*) AS occurrences
+           FROM input_prices
+           GROUP BY reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
+           HAVING COUNT(*) > 1 LIMIT 1"""
+    ).fetchone()
+    if duplicate is not None:
+        raise ValueError(
+            "Chave natural de preços duplicada no banco existente; "
+            "reconcilie os registros antes de criar a restrição idempotente."
+        )
+    connection.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS uq_input_prices_natural_key
+           ON input_prices(
+               reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
+           )"""
+    )
+
+
 def initialize_database(database_path: str | Path) -> None:
     with connect(database_path) as connection:
-        connection.executescript(SCHEMA)
+        _ensure_schema(connection)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -112,7 +150,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"JSONL inválido em {path.name}, linha {line_number}.") from exc
             if not isinstance(record, dict):
-                raise ValueError(f"Registro JSONL deve ser objeto: {path.name}:{line_number}.")
+                raise TypeError(f"Registro JSONL deve ser objeto: {path.name}:{line_number}.")
             records.append(record)
     return records
 
@@ -133,16 +171,41 @@ def load_silver_reference(
     if manifest.get("reference") != reference:
         raise ValueError("Competência do manifesto diverge da solicitada.")
 
-    prices = _read_jsonl(base / "input_prices.jsonl")
-    compositions = _read_jsonl(base / "compositions.jsonl")
-    items = _read_jsonl(base / "composition_items.jsonl")
+    expected_files = {
+        "input_prices.jsonl", "compositions.jsonl", "composition_items.jsonl"
+    }
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise TypeError("Manifesto Silver sem inventário de artefatos válido.")
+    metadata = {entry.get("file"): entry for entry in artifacts if isinstance(entry, dict)}
+    if set(metadata) != expected_files or len(metadata) != len(artifacts):
+        raise ValueError("Inventário de artefatos Silver incompleto ou inconsistente.")
+
+    collections: dict[str, list[dict[str, Any]]] = {}
+    for filename in sorted(expected_files):
+        path = base / filename
+        artifact = metadata[filename]
+        if not path.is_file():
+            raise FileNotFoundError(f"Artefato Silver não encontrado: {path}")
+        if path.stat().st_size != artifact.get("size_bytes"):
+            raise ValueError(f"Tamanho divergente no artefato Silver: {filename}.")
+        if _sha256_file(path) != artifact.get("sha256"):
+            raise ValueError(f"SHA-256 divergente no artefato Silver: {filename}.")
+        records = _read_jsonl(path)
+        if len(records) != artifact.get("records"):
+            raise ValueError(f"Quantidade de registros divergente no artefato Silver: {filename}.")
+        collections[filename] = records
+
+    prices = collections["input_prices.jsonl"]
+    compositions = collections["compositions.jsonl"]
+    items = collections["composition_items.jsonl"]
     for collection in (prices, compositions, items):
         if any(record.get("reference") != reference for record in collection):
             raise ValueError("Há registros com competência divergente nos artefatos Silver.")
 
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
-        connection.executescript(SCHEMA)
+        _ensure_schema(connection)
         connection.execute(
             """INSERT INTO source_references(reference, source_file)
                VALUES (?, ?)
@@ -173,14 +236,14 @@ def load_silver_reference(
         connection.executemany(
             """INSERT INTO composition_items(
                 reference, composition_code, item_code, item_type, description,
-                unit, coefficient, source_file, source_sheet, source_row
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                unit, coefficient, status, source_file, source_sheet, source_row
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 (
                     row["reference"], row["composition_code"], row["item_code"],
                     row["item_type"], row["description"], row["unit"],
-                    str(row["coefficient"]), row["source_file"], row["source_sheet"],
-                    row["source_row"],
+                    str(row["coefficient"]), row.get("status"), row["source_file"],
+                    row["source_sheet"], row["source_row"],
                 )
                 for row in items
             ],

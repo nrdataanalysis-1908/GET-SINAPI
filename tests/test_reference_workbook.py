@@ -1,7 +1,8 @@
+import json
+
 from openpyxl import Workbook
 
 from getsinapi.extractors.reference_workbook import parse_reference_workbook
-
 
 UF_CODES = [
     "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT",
@@ -18,7 +19,7 @@ def make_reference_workbook(path):
     for sheet_name in ("ISD", "ICD", "ISE"):
         sheet = workbook.create_sheet(sheet_name)
         for column, uf in enumerate(UF_CODES, start=6):
-            sheet.cell(9, column, uf)
+            sheet.cell(10, column, uf)
         for column, value in enumerate(
             ["Classificação", "Código", "Descrição", "Unidade", "Origem"], start=1
         ):
@@ -36,12 +37,12 @@ def make_reference_workbook(path):
     ):
         analytic.cell(10, column, value)
     for column, value in enumerate(
-        [None, "104658", "CABECALHO", None, "Composição teste", "M2", None, "COM CUSTO"],
+        [None, "104658", None, None, "Composição teste", "M2", None, "COM CUSTO"],
         start=1,
     ):
         analytic.cell(11, column, value)
     for column, value in enumerate(
-        [None, "104658", "INSUMO", "1379", "Cimento", "KG", 2, None],
+        [None, "104658", "INSUMO", "1379", "Cimento", "KG", 2, "COM PREÇO"],
         start=1,
     ):
         analytic.cell(12, column, value)
@@ -61,6 +62,7 @@ def test_parse_reference_workbook_integrates_prices_and_compositions(tmp_path):
     assert all(len(table.records) == 27 for table in result.prices)
     assert len(result.compositions.compositions) == 1
     assert len(result.compositions.items) == 1
+    assert result.compositions.items[0].status.value == "com_preco"
 
 
 def test_parse_reference_workbook_reports_missing_sheets(tmp_path):
@@ -107,3 +109,7 @@ def test_normalization_writes_silver_jsonl_and_manifest(tmp_path):
     assert (output / "compositions.jsonl").is_file()
     assert (output / "composition_items.jsonl").is_file()
     assert (output / "normalization-manifest.json").is_file()
+    silver_item = json.loads(
+        (output / "composition_items.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert silver_item["status"] == "com_preco"

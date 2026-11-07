@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/silver-integrity-status-idempotency]
   pull_request:
     branches: [main]
   workflow_dispatch:

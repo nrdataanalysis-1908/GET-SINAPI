@@ -10,15 +10,14 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from getsinapi import __version__
 from getsinapi.domain import CompositionStatus, EncargoMode, PriceStatus, Regime
 from getsinapi.extractors.compositions import CompositionItemRecord, CompositionRecord
 from getsinapi.extractors.price_tables import InputPriceRecord
 from getsinapi.services.costing import BudgetItem, CompositionCostCalculator
-
 
 app = FastAPI(
     title="GET-SINAPI API",
@@ -169,7 +168,7 @@ def composition_items(
     reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
 ) -> list[dict[str, Any]]:
     return _rows(
-        """SELECT item_code, item_type, description, unit, coefficient, source_row
+        """SELECT item_code, item_type, description, unit, coefficient, status, source_row
            FROM composition_items
            WHERE reference = ? AND composition_code = ?
            ORDER BY source_row""",
@@ -194,7 +193,7 @@ def _cost_calculator(
     )
     item_rows = _rows(
         """SELECT reference, composition_code, item_code, item_type,
-                  description, unit, coefficient, source_file, source_sheet, source_row
+                  description, unit, coefficient, status, source_file, source_sheet, source_row
            FROM composition_items WHERE reference = ? ORDER BY source_row""",
         (reference,),
     )
@@ -221,7 +220,11 @@ def _cost_calculator(
     ]
     item_records = [
         CompositionItemRecord(
-            **{**row, "coefficient": Decimal(row["coefficient"])}
+            **{
+                **row,
+                "coefficient": Decimal(row["coefficient"]),
+                "status": CompositionStatus(row["status"]) if row["status"] else None,
+            }
         )
         for row in item_rows
     ]
@@ -245,8 +248,8 @@ def composition_cost(
     code: str,
     reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
     uf: str = Query(..., min_length=2, max_length=2),
-    regime: Regime | None = Query(Regime.NAO_DESONERADO),
-    encargo_mode: EncargoMode = Query(EncargoMode.COM_ENCARGOS),
+    regime: Regime | None = Regime.NAO_DESONERADO,
+    encargo_mode: EncargoMode = EncargoMode.COM_ENCARGOS,
 ) -> dict[str, Any]:
     calculator = _cost_calculator(
         reference=reference, uf=uf, regime=regime, encargo_mode=encargo_mode

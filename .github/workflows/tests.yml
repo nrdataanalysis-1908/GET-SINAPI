@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/pulse-functional-parity
+      - fix/silver-integrity-status-idempotency
   pull_request:
     branches:
       - main

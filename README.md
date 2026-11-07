@@ -119,6 +119,8 @@ A modelagem distingue regime de desoneração de modalidade de encargos sociais.
 - Valores monetários e coeficientes com precisão decimal.
 - Códigos oficiais preservados como identificadores.
 - Proveniência até arquivo, planilha e linha de origem.
+- Situação oficial preservada também em cada componente de composição.
+- SHA-256, tamanho e contagem dos três artefatos Silver verificados antes da carga SQLite.
 - Extração segura e validação de integridade dos arquivos.
 - Separação entre dado oficial e cálculo derivado pelo sistema.
 
