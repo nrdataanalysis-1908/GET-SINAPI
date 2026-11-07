@@ -7,6 +7,7 @@ pode preservar tabelas, chaves naturais e semântica de carga.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -94,6 +95,10 @@ def connect(database_path: str | Path) -> sqlite3.Connection:
 
 
 def initialize_database(database_path: str | Path) -> None:
+    for collection in (prices, compositions, items):
+        if any(record.get("reference") != reference for record in collection):
+            raise ValueError("Há registros com competência divergente nos artefatos Silver.")
+
     with connect(database_path) as connection:
         connection.executescript(SCHEMA)
 
@@ -122,6 +127,8 @@ def load_silver_reference(
     reference: str,
 ) -> dict[str, int | str]:
     """Carrega uma competência em transação única; repetir a carga não duplica."""
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", reference):
+        raise ValueError("Competência inválida. Informe AAAA-MM.")
     base = Path(processed_dir) / reference
     manifest_path = base / "normalization-manifest.json"
     if not manifest_path.is_file():
@@ -133,11 +140,6 @@ def load_silver_reference(
     prices = _read_jsonl(base / "input_prices.jsonl")
     compositions = _read_jsonl(base / "compositions.jsonl")
     items = _read_jsonl(base / "composition_items.jsonl")
-    table_types = {
-        record["code"]: record.get("table_type", "")
-        for record in prices
-    }
-
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
         connection.executescript(SCHEMA)
