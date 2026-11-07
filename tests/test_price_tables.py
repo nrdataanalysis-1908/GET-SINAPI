@@ -29,7 +29,7 @@ def make_price_workbook(path, sheet_name="ISD"):
     sheet.cell(row=11, column=3, value="Cimento Portland")
     sheet.cell(row=11, column=4, value="KG")
     sheet.cell(row=11, column=5, value="C")
-    sheet.cell(row=11, column=17, value=0)
+    sheet.cell(row=11, column=16, value=0)
     sheet.cell(row=11, column=31, value=12.34)
     workbook.save(path)
 
