@@ -10,11 +10,13 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from getsinapi import __version__
+
 
 app = FastAPI(
     title="GET-SINAPI API",
     description="API de consulta dos dados históricos oficiais do SINAPI.",
-    version="0.2.0",
+    version=__version__,
 )
 
 app.add_middleware(
