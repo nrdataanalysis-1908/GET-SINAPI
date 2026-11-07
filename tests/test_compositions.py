@@ -12,13 +12,13 @@ def make_analytic_workbook(path):
     sheet = workbook.active
     sheet.title = "Analítico"
     for column, value in enumerate(
-        ["Grupo", "Código", "Tipo", "Código Item", "Descrição", "Unidade", "Coeficiente", "Situação"],
+        ["Grupo", "Código da Composição", "Tipo Item", "Código do Item", "Descrição", "Unidade", "Coeficiente", "Situação"],
         start=1,
     ):
         sheet.cell(row=10, column=column, value=value)
 
     # Main composition header.
-    values = [None, "104658", "CABECALHO", None, "Composição de teste", "M2", None, "COM CUSTO"]
+    values = ["Acessibilidade", "104658", None, None, "Composição de teste", "M2", None, "COM CUSTO"]
     for column, value in enumerate(values, start=1):
         sheet.cell(row=11, column=column, value=value)
 
@@ -76,11 +76,11 @@ def test_parser_warns_about_missing_and_negative_coefficients(tmp_path):
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Analítico"
-    headers = ["Grupo", "Código", "Tipo", "Código Item", "Descrição", "Unidade", "Coeficiente", "Situação"]
+    headers = ["Grupo", "Código da Composição", "Tipo Item", "Código do Item", "Descrição", "Unidade", "Coeficiente", "Situação"]
     for col, value in enumerate(headers, 1):
         sheet.cell(10, col, value)
     rows = [
-        [None, "100", "CABECALHO", None, "Composição", "UN", None, "SEM PREÇO"],
+        ["Grupo", "100", None, None, "Composição", "UN", None, "SEM PREÇO"],
         [None, "100", "INSUMO", "200", "Item sem coeficiente", "KG", None, None],
         [None, "100", "INSUMO", "201", "Item com coeficiente negativo", "KG", -1, None],
     ]
