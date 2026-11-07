@@ -80,21 +80,29 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      request<{ status: string }>("/api/health"),
-      request<Reference[]>("/api/references"),
-    ]).then(([health, refs]) => {
-      if (!active) return;
-      setApiState(health.status === "ok" ? "online" : "offline");
-      setReferences(refs);
-      if (refs.length) setReference(refs[0].reference);
-      setLastCheck(new Date().toLocaleTimeString("pt-BR"));
-    }).catch((cause) => {
-      if (!active) return;
-      setApiState("offline");
-      setError(cause instanceof Error ? cause.message : "API indisponível.");
-      setLastCheck(new Date().toLocaleTimeString("pt-BR"));
-    });
+    async function initialize() {
+      try {
+        const health = await request<{ status: string }>("/api/health");
+        if (!active) return;
+        setApiState(health.status === "ok" ? "online" : "offline");
+        setLastCheck(new Date().toLocaleTimeString("pt-BR"));
+        try {
+          const refs = await request<Reference[]>("/api/references");
+          if (!active) return;
+          setReferences(refs);
+          if (refs.length) setReference(refs[0].reference);
+        } catch (cause) {
+          if (!active) return;
+          setError(cause instanceof Error ? cause.message : "Banco histórico ainda não inicializado.");
+        }
+      } catch (cause) {
+        if (!active) return;
+        setApiState("offline");
+        setError(cause instanceof Error ? cause.message : "API indisponível.");
+        setLastCheck(new Date().toLocaleTimeString("pt-BR"));
+      }
+    }
+    void initialize();
     return () => { active = false; };
   }, []);
 
