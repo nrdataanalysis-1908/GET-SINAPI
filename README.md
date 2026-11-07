@@ -203,3 +203,32 @@ NR Data Analysis · Data Engineering
 *Precisão na origem. Consistência no processamento. Confiança na consulta.*
 
 </div>
+
+## Aplicação web (React + FastAPI)
+
+O repositório contém o primeiro esqueleto executável da aplicação web. O dashboard identifica a disponibilidade real da API e distingue serviços implementados de componentes ainda não conectados. Indicadores sem dados persistidos permanecem vazios; não são preenchidos com valores fictícios.
+
+### Iniciar a API
+
+Na raiz do projeto, com o ambiente virtual ativado:
+
+```powershell
+pip install -e ".[dev]"
+uvicorn getsinapi.api.main:app --reload
+```
+
+A API ficará disponível em `http://127.0.0.1:8000` e a verificação de saúde em `http://127.0.0.1:8000/api/health`.
+
+### Iniciar o frontend
+
+Em outro terminal:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Abra `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local na porta 8000.
+
+> Estado atual: a tela inicial e o endpoint de saúde estão implementados. PostgreSQL, parsers de negócio, consultas de insumos/composições e indicadores reais ainda serão integrados nas próximas etapas.
