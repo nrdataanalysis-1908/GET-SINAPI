@@ -77,7 +77,7 @@ O objetivo é oferecer uma fundação confiável para análises de custos, compo
 </tr>
 </table>
 
-> **Transparência de implementação:** coleta inicial, extração segura, catálogo de planilhas, fundação do pacote e normalizadores já possuem implementação. Parsers completos dos layouts oficiais, persistência histórica, API de consulta e painéis analíticos ainda fazem parte da evolução do produto. Os recursos planejados não são apresentados como funcionalidades já disponíveis.
+> **Transparência de implementação:** coleta inicial, extração segura, catálogo de planilhas, parsers iniciais das matrizes ISD/ICD/ISE e do relatório Analítico, normalização Silver e motor de cálculo recursivo já possuem implementação. Persistência histórica em banco, integração dos cálculos à API e painéis analíticos continuam em desenvolvimento. Os recursos planejados não são apresentados como funcionalidades já disponíveis.
 
 ## Arquitetura de dados
 
@@ -181,8 +181,8 @@ A stack acima representa tecnologias incorporadas ou previstas na arquitetura. A
 | Coleta e validação inicial de pacotes | Implementação inicial |
 | Extração segura e catálogo XLSX | Implementada |
 | Auditoria dos layouts oficiais | Em andamento |
-| Parsers semânticos completos | Planejado |
-| Consolidação histórica e persistência | Planejado |
+| Parsers de preços ISD/ICD/ISE e relatório Analítico | Implementação inicial |
+| Motor de cálculo recursivo de composições e orçamento | Implementação inicial |\n| Consolidação histórica e persistência | Planejado |
 | API de consulta | Planejado |
 | Exportação analítica e dashboards | Planejado |
 | Orquestração e observabilidade | Planejado |
