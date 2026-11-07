@@ -79,6 +79,8 @@ def parse_input_price_table(
     reference: str,
 ) -> InputPriceParseResult:
     """Converte uma tabela ISD/ICD/ISE larga em observações por UF."""
+    if not REFERENCE_PATTERN.fullmatch(reference):
+        raise ValueError("Competência inválida. Informe AAAA-MM.")
     path = Path(workbook_path)
     table_type = _table_type(path, sheet_name)
     regime, encargo_mode = PRICE_TABLES[table_type]
@@ -88,28 +90,31 @@ def parse_input_price_table(
             raise ValueError(f"Aba inexistente: {sheet_name}")
         sheet = workbook[sheet_name]
 
-        # A linha 9 contém as siglas das UFs alinhadas às colunas de preços F:AF.
-        uf_columns: list[tuple[int, str]] = []
-        for column in range(6, 33):
-            state = _uf(sheet.cell(row=9, column=column).value)
-            if state:
-                uf_columns.append((column, state))
+        # Streaming sequencial evita acesso aleatório custoso em read_only.
+        rows = sheet.iter_rows(min_row=9, max_col=32, values_only=True)
+        uf_row = next(rows, ())
+        header_row = next(rows, ())
+        uf_columns = [
+            (column, state)
+            for column, value in enumerate(uf_row, start=1)
+            if column >= 6 and (state := _uf(value)) is not None
+        ]
         if len(uf_columns) != 27 or len({state for _, state in uf_columns}) != 27:
             raise ValueError(
                 f"Mapa de UFs inválido na linha 9: {len(uf_columns)} colunas reconhecidas."
             )
 
-        headers = [str(sheet.cell(row=10, column=column).value or "").strip().casefold()
-                   for column in range(1, 6)]
+        headers = [str(value or "").strip().casefold() for value in header_row[:5]]
         if not any("código" in value or "codigo" in value for value in headers):
             raise ValueError("Cabeçalho da tabela não reconhecido na linha 10.")
 
         records: list[InputPriceRecord] = []
         warnings: list[str] = []
-        for row_number in range(11, (sheet.max_row or 10) + 1):
-            code_value = sheet.cell(row=row_number, column=2).value
-            description_value = sheet.cell(row=row_number, column=3).value
-            unit_value = sheet.cell(row=row_number, column=4).value
+        for row_number, row in enumerate(rows, start=11):
+            values = tuple(row)
+            code_value = values[1] if len(values) > 1 else None
+            description_value = values[2] if len(values) > 2 else None
+            unit_value = values[3] if len(values) > 3 else None
             if code_value is None and description_value is None:
                 continue
             if code_value is None or description_value is None or unit_value is None:
@@ -119,11 +124,11 @@ def parse_input_price_table(
             code = str(code_value).strip()
             description = str(description_value).strip()
             unit = str(unit_value).strip()
-            origin_value = sheet.cell(row=row_number, column=5).value
+            origin_value = values[4] if len(values) > 4 else None
             origin = str(origin_value).strip() if origin_value is not None else None
 
             for column, state in uf_columns:
-                raw_price = sheet.cell(row=row_number, column=column).value
+                raw_price = values[column - 1] if len(values) >= column else None
                 price, status = classify_price(raw_price)
                 records.append(InputPriceRecord(
                     reference=reference,
