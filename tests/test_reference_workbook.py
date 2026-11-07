@@ -38,7 +38,7 @@ def make_reference_workbook(path):
     ):
         analytic.cell(10, column, value)
     for column, value in enumerate(
-        [None, "104658", "CABECALHO", None, "Composição teste", "M2", None, "COM CUSTO"],
+        [None, "104658", None, None, "Composição teste", "M2", None, "COM CUSTO"],
         start=1,
     ):
         analytic.cell(11, column, value)
