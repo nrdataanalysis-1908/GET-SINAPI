@@ -147,6 +147,26 @@ def load_silver_reference(
         if any(record.get("reference") != reference for record in collection):
             raise ValueError("Há registros com competência divergente nos artefatos Silver.")
 
+    # SQLite UNIQUE constraints treat NULL values as distinct. Validate the
+    # natural key in Python so ISE rows (regime=None) cannot duplicate.
+    seen_price_keys: set[tuple[Any, ...]] = set()
+    for row_number, record in enumerate(prices, start=1):
+        key = (
+            record.get("reference"), record.get("code"), record.get("uf"),
+            record.get("regime"), record.get("encargo_mode"), record.get("table_type"),
+        )
+        try:
+            duplicate = key in seen_price_keys
+            seen_price_keys.add(key)
+        except TypeError as exc:
+            raise ValueError(
+                f"Invalid input-price natural key at record {row_number}."
+            ) from exc
+        if duplicate:
+            raise ValueError(
+                f"duplicate input-price natural key at record {row_number}: {key!r}"
+            )
+
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
         connection.executescript(SCHEMA)
