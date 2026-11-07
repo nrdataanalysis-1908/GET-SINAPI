@@ -69,3 +69,33 @@ def test_ise_is_not_misclassified_as_a_third_desoneration_regime(tmp_path):
     result = parse_input_price_table(path, "ISE", reference="2026-09")
     assert result.records[0].regime is None
     assert result.records[0].encargo_mode == EncargoMode.SEM_ENCARGOS
+
+
+
+def test_icd_maps_to_desonerated_with_social_charges(tmp_path):
+    path = tmp_path / "SINAPI_ICD_2026_09.xlsx"
+    make_price_workbook(path, sheet_name="ICD")
+
+    result = parse_input_price_table(path, "ICD", reference="2026-09")
+
+    assert result.records[0].regime == Regime.DESONERADO
+    assert result.records[0].encargo_mode == EncargoMode.COM_ENCARGOS
+
+
+def test_blank_prices_remain_missing(tmp_path):
+    path = tmp_path / "SINAPI_ISD_2026_09.xlsx"
+    make_price_workbook(path)
+
+    result = parse_input_price_table(path, "ISD", reference="2026-09")
+    ac = next(record for record in result.records if record.uf == "AC")
+
+    assert ac.price is None
+    assert ac.status == PriceStatus.MISSING
+
+
+def test_parser_rejects_invalid_reference(tmp_path):
+    path = tmp_path / "SINAPI_ISD_2026_09.xlsx"
+    make_price_workbook(path)
+
+    with pytest.raises(ValueError, match="Competência inválida"):
+        parse_input_price_table(path, "ISD", reference="2026-13")
