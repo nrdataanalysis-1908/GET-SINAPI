@@ -17,12 +17,12 @@ def make_reference_workbook(path):
 
     for sheet_name in ("ISD", "ICD", "ISE"):
         sheet = workbook.create_sheet(sheet_name)
-        for column, uf in enumerate(UF_CODES, start=6):
-            sheet.cell(9, column, uf)
         for column, value in enumerate(
             ["Classificação", "Código", "Descrição", "Unidade", "Origem"], start=1
         ):
             sheet.cell(10, column, value)
+        for column, uf in enumerate(UF_CODES, start=6):
+            sheet.cell(10, column, uf)
         for column, value in enumerate(
             ["01", "1379", "Cimento", "KG", "C"], start=1
         ):
