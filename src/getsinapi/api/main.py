@@ -19,7 +19,6 @@ from getsinapi.extractors.compositions import CompositionItemRecord, Composition
 from getsinapi.extractors.price_tables import InputPriceRecord
 from getsinapi.services.costing import BudgetItem, CompositionCostCalculator
 
-
 app = FastAPI(
     title="GET-SINAPI API",
     description="API de consulta dos dados históricos oficiais do SINAPI.",
