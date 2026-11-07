@@ -12,7 +12,7 @@ def test_health_endpoint_reports_api_availability_only():
     assert response.json() == {
         "status": "ok",
         "service": "get-sinapi-api",
-        "version": "0.2.0",
+        "version": "0.1.0",
     }
 
 
