@@ -1,9 +1,7 @@
-import json
-
 import pytest
+from test_storage import prepare_reference, write_jsonl
 
 from getsinapi.storage.sqlite import load_silver_reference
-from test_storage import prepare_reference, write_jsonl
 
 
 def test_load_rejects_duplicate_ise_natural_keys_with_null_regime(tmp_path):
