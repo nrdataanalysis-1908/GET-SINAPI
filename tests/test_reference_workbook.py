@@ -74,3 +74,36 @@ def test_parse_reference_workbook_reports_missing_sheets(tmp_path):
         assert "abas ausentes" in str(exc)
     else:
         raise AssertionError("Esperava erro por abas obrigatórias ausentes.")
+
+
+def test_normalization_writes_silver_jsonl_and_manifest(tmp_path):
+    from getsinapi.config import Settings
+    from getsinapi.pipeline.normalize import normalize_reference_workbook
+
+    source = tmp_path / "SINAPI_Referencia_2026_09.xlsx"
+    make_reference_workbook(source)
+    settings = Settings(
+        environment="test",
+        log_level="INFO",
+        data_dir=tmp_path / "data",
+        raw_dir=tmp_path / "data" / "raw",
+        staging_dir=tmp_path / "data" / "staging",
+        processed_dir=tmp_path / "data" / "processed",
+        manifest_dir=tmp_path / "data" / "manifests",
+        http_timeout=30,
+        http_max_retries=1,
+        http_backoff_seconds=0.1,
+    )
+
+    result = normalize_reference_workbook(
+        source, reference="2026-09", settings=settings
+    )
+    output = settings.processed_dir / "2026-09"
+
+    assert result["counts"]["input_prices"] == 81
+    assert result["counts"]["compositions"] == 1
+    assert result["counts"]["composition_items"] == 1
+    assert (output / "input_prices.jsonl").is_file()
+    assert (output / "compositions.jsonl").is_file()
+    assert (output / "composition_items.jsonl").is_file()
+    assert (output / "normalization-manifest.json").is_file()
