@@ -175,3 +175,100 @@ def composition_items(
            ORDER BY source_row""",
         (reference, code),
     )
+
+def _cost_calculator(
+    *, reference: str, uf: str, regime: Regime | None, encargo_mode: EncargoMode
+) -> CompositionCostCalculator:
+    price_rows = _rows(
+        """SELECT reference, code, description, unit, uf, regime, encargo_mode,
+                  price, status, price_origin, source_file, source_sheet, source_row
+           FROM input_prices
+           WHERE reference = ? AND uf = ? AND regime IS ? AND encargo_mode = ?""",
+        (reference, uf.upper(), regime.value if regime else None, encargo_mode.value),
+    )
+    composition_rows = _rows(
+        """SELECT reference, code, description, unit, status,
+                  source_file, source_sheet, source_row
+           FROM compositions WHERE reference = ?""",
+        (reference,),
+    )
+    item_rows = _rows(
+        """SELECT reference, composition_code, item_code, item_type,
+                  description, unit, coefficient, source_file, source_sheet, source_row
+           FROM composition_items WHERE reference = ? ORDER BY source_row""",
+        (reference,),
+    )
+    prices = [
+        InputPriceRecord(
+            **{
+                **row,
+                "regime": Regime(row["regime"]) if row["regime"] else None,
+                "encargo_mode": EncargoMode(row["encargo_mode"]),
+                "price": Decimal(row["price"]) if row["price"] is not None else None,
+                "status": PriceStatus(row["status"]),
+            }
+        )
+        for row in price_rows
+    ]
+    compositions = [
+        CompositionRecord(
+            **{
+                **row,
+                "status": CompositionStatus(row["status"]) if row["status"] else None,
+            }
+        )
+        for row in composition_rows
+    ]
+    item_records = [
+        CompositionItemRecord(
+            **{**row, "coefficient": Decimal(row["coefficient"])}
+        )
+        for row in item_rows
+    ]
+    return CompositionCostCalculator(
+        prices=prices,
+        compositions=compositions,
+        composition_items=item_records,
+        reference=reference,
+        uf=uf,
+        regime=regime,
+        encargo_mode=encargo_mode,
+    )
+
+
+@app.get(
+    "/api/composicoes/{code}/custo",
+    tags=["Orçamento"],
+    summary="Calcula o custo unitário recursivo de uma composição",
+)
+def composition_cost(
+    code: str,
+    reference: str = Query(..., pattern=r"^\\d{4}-(0[1-9]|1[0-2])$"),
+    uf: str = Query(..., min_length=2, max_length=2),
+    regime: Regime | None = Query(Regime.NAO_DESONERADO),
+    encargo_mode: EncargoMode = Query(EncargoMode.COM_ENCARGOS),
+) -> dict[str, Any]:
+    calculator = _cost_calculator(
+        reference=reference, uf=uf, regime=regime, encargo_mode=encargo_mode
+    )
+    return jsonable_encoder(calculator.calculate_composition(code))
+
+
+@app.post(
+    "/api/budget",
+    tags=["Orçamento"],
+    summary="Calcula orçamento com insumos e composições SINAPI",
+)
+def calculate_budget(request: BudgetRequest) -> dict[str, Any]:
+    calculator = _cost_calculator(
+        reference=request.reference,
+        uf=request.uf,
+        regime=request.regime,
+        encargo_mode=request.encargo_mode,
+    )
+    items = [
+        BudgetItem(code=item.code, item_type=item.item_type, quantity=item.quantity)
+        for item in request.items
+    ]
+    return jsonable_encoder(calculator.calculate_budget(items))
+
