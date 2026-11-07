@@ -15,6 +15,23 @@ class Regime(StrEnum):
     NAO_DESONERADO = "nao_desonerado"
 
 
+class EncargoMode(StrEnum):
+    """Tratamento de encargos sociais aplicado ao relatório."""
+
+    COM_ENCARGOS = "com_encargos"
+    SEM_ENCARGOS = "sem_encargos"
+
+
+class CompositionStatus(StrEnum):
+    """Situação da composição conforme a classificação da fonte oficial."""
+
+    COM_CUSTO = "com_custo"
+    COM_PRECO = "com_preco"
+    SEM_CUSTO = "sem_custo"
+    SEM_PRECO = "sem_preco"
+    EM_ESTUDO = "em_estudo"
+
+
 class PriceStatus(StrEnum):
     REPORTED = "reported"
     REPORTED_ZERO = "reported_zero"
