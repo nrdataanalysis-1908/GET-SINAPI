@@ -82,6 +82,27 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
     assert items.status_code == 200
     assert items.json()[0]["coefficient"] == "2.5"
 
+    composition_cost = client.get(
+        "/api/composicoes/104658/custo",
+        params={"reference": "2026-09", "uf": "MG"},
+    )
+    assert composition_cost.status_code == 200
+    assert composition_cost.json()["total"] == "25.625"
+    assert composition_cost.json()["status"] == "complete"
+
+    budget = client.post(
+        "/api/budget",
+        json={
+            "reference": "2026-09",
+            "uf": "MG",
+            "regime": "nao_desonerado",
+            "encargo_mode": "com_encargos",
+            "items": [{"code": "104658", "item_type": "COMPOSICAO", "quantity": "2"}],
+        },
+    )
+    assert budget.status_code == 200
+    assert budget.json()["total"] == "51.250"
+
 
 def test_data_endpoints_return_service_unavailable_without_database(tmp_path, monkeypatch):
     monkeypatch.setenv("GETSINAPI_DATABASE_PATH", str(tmp_path / "missing.sqlite3"))
