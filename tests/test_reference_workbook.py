@@ -1,7 +1,8 @@
+from decimal import Decimal
+
 from openpyxl import Workbook
 
 from getsinapi.extractors.reference_workbook import parse_reference_workbook
-
 
 UF_CODES = [
     "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT",
@@ -17,12 +18,12 @@ def make_reference_workbook(path):
 
     for sheet_name in ("ISD", "ICD", "ISE"):
         sheet = workbook.create_sheet(sheet_name)
-        for column, uf in enumerate(UF_CODES, start=6):
-            sheet.cell(9, column, uf)
         for column, value in enumerate(
             ["Classificação", "Código", "Descrição", "Unidade", "Origem"], start=1
         ):
             sheet.cell(10, column, value)
+        for column, uf in enumerate(UF_CODES, start=6):
+            sheet.cell(10, column, uf)
         for column, value in enumerate(
             ["01", "1379", "Cimento", "KG", "C"], start=1
         ):
@@ -36,7 +37,7 @@ def make_reference_workbook(path):
     ):
         analytic.cell(10, column, value)
     for column, value in enumerate(
-        [None, "104658", "CABECALHO", None, "Composição teste", "M2", None, "COM CUSTO"],
+        [None, "104658", None, None, "Composição teste", "M2", None, "COM CUSTO"],
         start=1,
     ):
         analytic.cell(11, column, value)
@@ -59,6 +60,10 @@ def test_parse_reference_workbook_integrates_prices_and_compositions(tmp_path):
     assert result.source_file == path.name
     assert [table.table_type for table in result.prices] == ["ISD", "ICD", "ISE"]
     assert all(len(table.records) == 27 for table in result.prices)
+    for table in result.prices:
+        assert {record.uf for record in table.records} == set(UF_CODES)
+        mg_price = next(record.price for record in table.records if record.uf == "MG")
+        assert mg_price == Decimal("10.5")
     assert len(result.compositions.compositions) == 1
     assert len(result.compositions.items) == 1
 

@@ -6,7 +6,6 @@ from openpyxl import Workbook
 from getsinapi.domain import EncargoMode, PriceStatus, Regime
 from getsinapi.extractors.price_tables import parse_input_price_table
 
-
 UFs = [
     "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG",
     "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR",
@@ -46,7 +45,7 @@ def test_parse_isd_expands_27_ufs_and_preserves_zero_and_missing(tmp_path):
     assert mg.code == "00001379"
     assert mg.regime == Regime.NAO_DESONERADO
     assert mg.encargo_mode == EncargoMode.COM_ENCARGOS
-    assert mg.price == Decimal("0")
+    assert mg.price == Decimal(0)
     assert mg.status == PriceStatus.REPORTED_ZERO
     sp = next(record for record in result.records if record.uf == "SP")
     assert sp.price == Decimal("12.34")

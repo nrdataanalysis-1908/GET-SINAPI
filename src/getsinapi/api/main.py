@@ -6,19 +6,18 @@ import os
 import sqlite3
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from getsinapi import __version__
 from getsinapi.domain import CompositionStatus, EncargoMode, PriceStatus, Regime
 from getsinapi.extractors.compositions import CompositionItemRecord, CompositionRecord
 from getsinapi.extractors.price_tables import InputPriceRecord
 from getsinapi.services.costing import BudgetItem, CompositionCostCalculator
-
 
 app = FastAPI(
     title="GET-SINAPI API",
@@ -243,10 +242,10 @@ def _cost_calculator(
 )
 def composition_cost(
     code: str,
-    reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
-    uf: str = Query(..., min_length=2, max_length=2),
-    regime: Regime | None = Query(Regime.NAO_DESONERADO),
-    encargo_mode: EncargoMode = Query(EncargoMode.COM_ENCARGOS),
+    reference: Annotated[str, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")],
+    uf: Annotated[str, Query(min_length=2, max_length=2)],
+    regime: Annotated[Regime | None, Query()] = Regime.NAO_DESONERADO,
+    encargo_mode: Annotated[EncargoMode, Query()] = EncargoMode.COM_ENCARGOS,
 ) -> dict[str, Any]:
     calculator = _cost_calculator(
         reference=reference, uf=uf, regime=regime, encargo_mode=encargo_mode

@@ -92,7 +92,7 @@ def test_calculates_nested_composition_and_budget_with_decimal_precision():
     assert result.lines[0].unit_price == Decimal("30.00")
 
     budget = engine.calculate_budget([
-        BudgetItem("100", "COMPOSICAO", Decimal("4"))
+        BudgetItem("100", "COMPOSICAO", Decimal(4))
     ])
     assert budget.status == CostStatus.COMPLETE
     assert budget.total == Decimal("240.00")
@@ -121,7 +121,7 @@ def test_reported_zero_is_a_valid_zero_cost():
 
     result = engine.calculate_composition("100")
     assert result.status == CostStatus.COMPLETE
-    assert result.total == Decimal("0")
+    assert result.total == Decimal(0)
 
 
 def test_recursive_cycle_is_detected_and_not_totaled():
