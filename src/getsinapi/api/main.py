@@ -6,12 +6,12 @@ import os
 import sqlite3
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from getsinapi import __version__
 from getsinapi.domain import CompositionStatus, EncargoMode, PriceStatus, Regime
