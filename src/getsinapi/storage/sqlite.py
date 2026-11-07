@@ -133,7 +133,7 @@ def load_silver_reference(
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError("Manifesto Silver inválido ou ilegível.") from exc
     if not isinstance(manifest, dict):
-        raise ValueError("Manifesto Silver deve ser um objeto JSON.")
+        raise TypeError("Manifesto Silver deve ser um objeto JSON.")
     if manifest.get("reference") != reference:
         raise ValueError("Competência do manifesto diverge da solicitada.")
     source_file = manifest.get("source_file")
