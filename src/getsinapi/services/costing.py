@@ -173,7 +173,7 @@ class CompositionCostCalculator:
         next_stack = (*stack, composition_code)
         lines: list[CostLine] = []
         issues: list[str] = []
-        subtotal = Decimal("0")
+        subtotal = Decimal(0)
         complete = True
         cycle_detected = False
 
@@ -270,7 +270,7 @@ class CompositionCostCalculator:
         """Calcula orçamento sem totalizar linhas com custo incompleto."""
         lines: list[BudgetLine] = []
         issues: list[str] = []
-        subtotal = Decimal("0")
+        subtotal = Decimal(0)
         complete = True
         cycle_detected = False
 
