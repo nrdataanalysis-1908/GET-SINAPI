@@ -1,8 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
-  Activity, ArrowDownToLine, Boxes, ChartColumn, CircleHelp, Database,
-  FileSpreadsheet, Gauge, Layers3, Search, Settings2, ShieldCheck,
-  Calculator, RefreshCw, Plus, Trash2, MapPin, ChevronRight,
+  Activity, Boxes, ChartColumn, CircleHelp, Database, Gauge, Layers3,
+  Search, Settings2, ShieldCheck, Calculator, Plus, Trash2, MapPin, ChevronRight,
 } from "lucide-react";
 
 type ApiState = "checking" | "online" | "offline";
@@ -56,7 +55,6 @@ function App() {
   const [lastCheck, setLastCheck] = useState("Aguardando verificação");
 
   const apiLabel = apiState === "online" ? "API operacional" : apiState === "offline" ? "API desconectada" : "Verificando API";
-  const selectedReference = useMemo(() => references.find((item) => item.reference === reference), [references, reference]);
 
   async function request<T>(url: string, init?: RequestInit): Promise<T> {
     const response = await fetch(url, {
