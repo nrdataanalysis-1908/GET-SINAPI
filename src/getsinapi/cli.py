@@ -28,6 +28,11 @@ def build_parser() -> argparse.ArgumentParser:
     parse.add_argument("--workbook", required=True, type=Path, help="XLSX oficial de referência.")
     parse.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
 
+    load = commands.add_parser(
+        "load", help="Carrega os artefatos Silver no banco histórico SQLite."
+    )
+    load.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
+
     return parser
 
 
@@ -74,6 +79,17 @@ def main() -> int:
         print(f"Itens de composição: {result['counts']['composition_items']:,}")
         print(f"Advertências: {result['warning_count']:,}")
         print(f"Manifesto: {result['manifest_path']}")
+        return 0
+
+    if args.command == "load":
+        from getsinapi.storage.sqlite import load_silver_reference
+
+        result = load_silver_reference(settings.processed_dir, reference=args.reference)
+        print(f"Competência carregada: {result['reference']}")
+        print(f"Preços: {result['input_prices']:,}")
+        print(f"Composições: {result['compositions']:,}")
+        print(f"Itens: {result['composition_items']:,}")
+        print(f"Banco: {result['database_path']}")
         return 0
 
     parser.error("Comando não reconhecido.")
