@@ -243,7 +243,7 @@ def _cost_calculator(
 )
 def composition_cost(
     code: str,
-    reference: str = Query(..., pattern=r"^\\d{4}-(0[1-9]|1[0-2])$"),
+    reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
     uf: str = Query(..., min_length=2, max_length=2),
     regime: Regime | None = Query(Regime.NAO_DESONERADO),
     encargo_mode: EncargoMode = Query(EncargoMode.COM_ENCARGOS),
