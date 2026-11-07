@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
@@ -65,7 +66,7 @@ def _connect() -> sqlite3.Connection:
 
 def _rows(sql: str, parameters: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     try:
-        with _connect() as connection:
+        with closing(_connect()) as connection, connection:
             return [dict(row) for row in connection.execute(sql, parameters).fetchall()]
     except sqlite3.OperationalError as exc:
         if "no such table" in str(exc):
