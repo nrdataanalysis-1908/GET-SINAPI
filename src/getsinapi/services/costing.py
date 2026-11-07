@@ -7,12 +7,12 @@ não converte preço ausente em zero e detecta ciclos na árvore de dependência
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
-from typing import Iterable
 
-from getsinapi.domain import EncargoMode, PriceStatus, Regime
+from getsinapi.domain import EncargoMode, Regime
 from getsinapi.extractors.compositions import (
     CompositionItemRecord,
     CompositionRecord,
