@@ -22,6 +22,12 @@ def build_parser() -> argparse.ArgumentParser:
     extract.add_argument("--archive", required=True, type=Path, help="Caminho do ZIP já baixado.")
     extract.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
 
+    parse = commands.add_parser(
+        "parse", help="Normaliza preços e composições do XLSX oficial para a camada Silver."
+    )
+    parse.add_argument("--workbook", required=True, type=Path, help="XLSX oficial de referência.")
+    parse.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
+
     return parser
 
 
@@ -54,6 +60,20 @@ def main() -> int:
         print(f"Catálogo: {result['catalog_path']}")
         for workbook in result["workbooks"]:
             print(f"- {workbook['file']} | abas: {len(workbook['sheets'])}")
+        return 0
+
+    if args.command == "parse":
+        from getsinapi.pipeline.normalize import normalize_reference_workbook
+
+        result = normalize_reference_workbook(
+            args.workbook, reference=args.reference, settings=settings
+        )
+        print(f"Competência: {result['reference']}")
+        print(f"Preços: {result['counts']['input_prices']:,}")
+        print(f"Composições: {result['counts']['compositions']:,}")
+        print(f"Itens de composição: {result['counts']['composition_items']:,}")
+        print(f"Advertências: {result['warning_count']:,}")
+        print(f"Manifesto: {result['manifest_path']}")
         return 0
 
     parser.error("Comando não reconhecido.")
