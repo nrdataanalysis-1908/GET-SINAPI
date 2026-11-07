@@ -128,9 +128,17 @@ def load_silver_reference(
     manifest_path = base / "normalization-manifest.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Manifesto Silver não encontrado: {manifest_path}")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Manifesto Silver inválido ou ilegível.") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("Manifesto Silver deve ser um objeto JSON.")
     if manifest.get("reference") != reference:
         raise ValueError("Competência do manifesto diverge da solicitada.")
+    source_file = manifest.get("source_file")
+    if not isinstance(source_file, str) or not source_file.strip():
+        raise ValueError("Manifesto Silver deve informar source_file não vazio.")
 
     prices = _read_jsonl(base / "input_prices.jsonl")
     compositions = _read_jsonl(base / "compositions.jsonl")
@@ -147,7 +155,7 @@ def load_silver_reference(
                VALUES (?, ?)
                ON CONFLICT(reference) DO UPDATE SET
                source_file=excluded.source_file, loaded_at=CURRENT_TIMESTAMP""",
-            (reference, manifest["source_file"]),
+            (reference, source_file),
         )
 
         # Substitui apenas a competência solicitada, preservando todo o histórico.
