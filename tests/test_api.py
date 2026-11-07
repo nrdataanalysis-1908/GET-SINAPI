@@ -87,7 +87,7 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
         params={"reference": "2026-09", "uf": "MG"},
     )
     assert composition_cost.status_code == 200
-    assert composition_cost.json()["total"] == "25.625"
+    assert composition_cost.json()["total"] == 25.625
     assert composition_cost.json()["status"] == "complete"
 
     budget = client.post(
@@ -101,7 +101,7 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
         },
     )
     assert budget.status_code == 200
-    assert budget.json()["total"] == "51.250"
+    assert budget.json()["total"] == 51.25
 
 
 def test_data_endpoints_return_service_unavailable_without_database(tmp_path, monkeypatch):
