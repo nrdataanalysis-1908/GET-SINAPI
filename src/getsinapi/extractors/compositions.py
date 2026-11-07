@@ -112,14 +112,16 @@ def parse_analytic_compositions(
         warnings: list[str] = []
         known_compositions: set[str] = set()
 
-        for row_number in range(11, (sheet.max_row or 10) + 1):
-            parent_code = _code(sheet.cell(row=row_number, column=2).value)
-            row_type = _text(sheet.cell(row=row_number, column=3).value)
-            item_code = _code(sheet.cell(row=row_number, column=4).value)
-            description = str(sheet.cell(row=row_number, column=5).value or "").strip()
-            unit = str(sheet.cell(row=row_number, column=6).value or "").strip()
-            coefficient_value = sheet.cell(row=row_number, column=7).value
-            status_value = _text(sheet.cell(row=row_number, column=8).value)
+        rows = sheet.iter_rows(min_row=11, max_col=8, values_only=True)
+        for row_number, row in enumerate(rows, start=11):
+            values = tuple(row)
+            parent_code = _code(values[1] if len(values) > 1 else None)
+            row_type = _text(values[2] if len(values) > 2 else None)
+            item_code = _code(values[3] if len(values) > 3 else None)
+            description = str(values[4] or "").strip() if len(values) > 4 else ""
+            unit = str(values[5] or "").strip() if len(values) > 5 else ""
+            coefficient_value = values[6] if len(values) > 6 else None
+            status_value = _text(values[7] if len(values) > 7 else None)
 
             if not parent_code and not row_type and not description:
                 continue
