@@ -2,8 +2,8 @@
 
 Layout auditado na referência 2026-09:
 - Linha 10: cabeçalho das colunas.
-- Linha 11 em diante: linhas CABECALHO, COMPOSICAO e INSUMO.
-- B: código da composição-pai; C: tipo da linha; D: código do item;
+- Linha 11 em diante: linha-pai (C e D vazias), COMPOSICAO e INSUMO.
+- B: código da composição; C: tipo do item; D: código do item;
   E: descrição; F: unidade; G: coeficiente; H: situação.
 """
 from __future__ import annotations
@@ -126,7 +126,9 @@ def parse_analytic_compositions(
             if not parent_code and not row_type and not description:
                 continue
 
-            if row_type == "cabecalho":
+            # Na planilha oficial, a linha-pai não possui tipo nem código de item.
+            # A descrição e a unidade identificam a composição; não há rótulo CABECALHO.
+            if not row_type and not item_code and parent_code and description and unit:
                 if not parent_code or not description or not unit:
                     warnings.append(f"Linha {row_number}: cabeçalho de composição incompleto.")
                     continue
