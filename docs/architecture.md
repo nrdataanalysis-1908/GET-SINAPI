@@ -1,10 +1,10 @@
 # Arquitetura e decisões técnicas
 
-## Referência funcional auditada
+## Diretrizes do produto
 
-O PulseSINAPI público contém coletores de preços de insumos e composições, orquestração de scrapers, importação histórica CAIXA/SharePoint, consolidação CSV, sincronização SQLite/SQLAlchemy, API FastAPI, frontend React/Vite e GitHub Actions agendado.
+O GET-SINAPI será desenvolvido como uma plataforma independente para coleta, estruturação, validação e consulta de dados oficiais do SINAPI.
 
-O GET-SINAPI buscará paridade funcional, sem replicar defeitos identificados.
+A implementação seguirá contratos de dados explícitos, rastreabilidade de ponta a ponta e separação entre processamento, persistência, API e interface.
 
 ## Melhorias obrigatórias
 
@@ -59,7 +59,7 @@ Nenhuma competência será marcada como concluída apenas porque o processo term
 
 A página oficial da CAIXA informa que, a partir de 2025, os relatórios mensais são distribuídos em dois ZIPs: XLSX e PDF. O ZIP XLSX reúne relatórios de famílias e coeficientes, manutenções, percentual de mão de obra e relatórios de insumos/composições para todas as UFs. O ZIP PDF reúne relatórios analíticos, custos de composições e preços de insumos.
 
-O padrão de URL XLSX observado no catálogo do PulseSINAPI é:
+O padrão de URL para o pacote XLSX mensal da CAIXA é:
 https://www.caixa.gov.br/Downloads/sinapi-relatorios-mensais/SINAPI-AAAA-MM-formato-xlsx.zip
 
 A URL deve ser tratada como padrão técnico observado e validada em cada execução; não se deve presumir que toda competência esteja publicada.
