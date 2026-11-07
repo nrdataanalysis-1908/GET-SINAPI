@@ -16,7 +16,8 @@ from openpyxl import load_workbook
 from getsinapi.domain import EncargoMode, PriceStatus, Regime
 from getsinapi.normalizers import classify_price
 
-REFERENCE_PATTERN = re.compile(r"^\\d{4}-(0[1-9]|1[0-2])$")\nUF_CODES = {
+REFERENCE_PATTERN = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+UF_CODES = {
     "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT",
     "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO",
     "RR", "SC", "SP", "SE", "TO",
