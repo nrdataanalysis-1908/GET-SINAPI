@@ -1,0 +1,1 @@
+"""API HTTP do GET-SINAPI."""
