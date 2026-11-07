@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330" role="img" aria-labelledby="t d">
+<title id="t">Arquitetura de dados GET-SINAPI</title><desc id="d">Fluxo dos pacotes oficiais pelas camadas Bronze, Staging, Silver e Gold, com API como camada de disponibilização planejada.</desc>
+<defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#061426"/><stop offset="1" stop-color="#0A1D33"/></linearGradient><linearGradient id="c" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#087BCE"/><stop offset="1" stop-color="#21D4FD"/></linearGradient></defs>
+<rect width="1200" height="330" rx="18" fill="url(#b)"/>
+<g font-family="Inter,Arial,sans-serif">
+<text x="48" y="48" fill="#60E6FF" font-size="16" font-weight="700" letter-spacing="3">PIPELINE DE DADOS</text>
+<g transform="translate(45 90)">
+<rect width="195" height="145" rx="12" fill="#0D2945" stroke="#087BCE" stroke-width="2"/>
+<text x="22" y="39" fill="#60E6FF" font-size="15" font-weight="700">01 / ORIGEM</text><text x="22" y="76" fill="#EAF7FF" font-size="26" font-weight="700">BRONZE</text><text x="22" y="108" fill="#A9C8DA" font-size="14">Pacotes oficiais</text><text x="22" y="128" fill="#A9C8DA" font-size="14">imutáveis + SHA-256</text>
+</g>
+<path d="M247 162h40m-10-8 10 8-10 8" stroke="url(#c)" stroke-width="3" fill="none"/>
+<g transform="translate(295 90)"><rect width="195" height="145" rx="12" fill="#0D2945" stroke="#087BCE" stroke-width="2"/><text x="22" y="39" fill="#60E6FF" font-size="15" font-weight="700">02 / EXTRAÇÃO</text><text x="22" y="76" fill="#EAF7FF" font-size="26" font-weight="700">STAGING</text><text x="22" y="108" fill="#A9C8DA" font-size="14">ZIP seguro</text><text x="22" y="128" fill="#A9C8DA" font-size="14">catálogo e manifestos</text></g>
+<path d="M497 162h40m-10-8 10 8-10 8" stroke="url(#c)" stroke-width="3" fill="none"/>
+<g transform="translate(545 90)"><rect width="195" height="145" rx="12" fill="#0D2945" stroke="#087BCE" stroke-width="2"/><text x="22" y="39" fill="#60E6FF" font-size="15" font-weight="700">03 / QUALIDADE</text><text x="22" y="76" fill="#EAF7FF" font-size="26" font-weight="700">SILVER</text><text x="22" y="108" fill="#A9C8DA" font-size="14">Normalização</text><text x="22" y="128" fill="#A9C8DA" font-size="14">validação e histórico</text></g>
+<path d="M747 162h40m-10-8 10 8-10 8" stroke="url(#c)" stroke-width="3" fill="none"/>
+<g transform="translate(795 90)"><rect width="160" height="145" rx="12" fill="#0D2945" stroke="#21D4FD" stroke-width="2"/><text x="20" y="39" fill="#60E6FF" font-size="15" font-weight="700">04 / CONSUMO</text><text x="20" y="76" fill="#EAF7FF" font-size="26" font-weight="700">GOLD</text><text x="20" y="108" fill="#A9C8DA" font-size="14">Dados analíticos</text><text x="20" y="128" fill="#A9C8DA" font-size="14">visões consolidadas</text></g>
+<path d="M962 162h35m-10-8 10 8-10 8" stroke="url(#c)" stroke-width="3" fill="none"/>
+<g transform="translate(1005 90)"><rect width="150" height="145" rx="12" fill="#0D2945" stroke="#21D4FD" stroke-width="2" stroke-dasharray="7 5"/><text x="18" y="39" fill="#60E6FF" font-size="15" font-weight="700">05 / ACESSO</text><text x="18" y="76" fill="#EAF7FF" font-size="26" font-weight="700">API</text><text x="18" y="108" fill="#A9C8DA" font-size="14">Consulta</text><text x="18" y="128" fill="#A9C8DA" font-size="14">e integração</text></g>
+<text x="48" y="285" fill="#7FAFC9" font-size="14">Fluxo arquitetural alvo — módulos futuros são identificados no README como planejados.</text>
+</g></svg>
