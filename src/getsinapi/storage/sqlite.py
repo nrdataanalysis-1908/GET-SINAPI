@@ -95,10 +95,6 @@ def connect(database_path: str | Path) -> sqlite3.Connection:
 
 
 def initialize_database(database_path: str | Path) -> None:
-    for collection in (prices, compositions, items):
-        if any(record.get("reference") != reference for record in collection):
-            raise ValueError("Há registros com competência divergente nos artefatos Silver.")
-
     with connect(database_path) as connection:
         connection.executescript(SCHEMA)
 
@@ -140,6 +136,10 @@ def load_silver_reference(
     prices = _read_jsonl(base / "input_prices.jsonl")
     compositions = _read_jsonl(base / "compositions.jsonl")
     items = _read_jsonl(base / "composition_items.jsonl")
+    for collection in (prices, compositions, items):
+        if any(record.get("reference") != reference for record in collection):
+            raise ValueError("Há registros com competência divergente nos artefatos Silver.")
+
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
         connection.executescript(SCHEMA)
