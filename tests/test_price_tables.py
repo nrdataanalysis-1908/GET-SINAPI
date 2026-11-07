@@ -14,10 +14,10 @@ UFs = [
 ]
 
 
-def make_price_workbook(path, filename="SINAPI_ISD_2026_09.xlsx"):
+def make_price_workbook(path, sheet_name="ISD"):
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = "ISD"
+    sheet.title = sheet_name
     sheet.cell(row=9, column=1, value="UF")
     for column, uf in enumerate(UFs, start=6):
         sheet.cell(row=9, column=column, value=uf)
@@ -56,16 +56,16 @@ def test_parse_isd_expands_27_ufs_and_preserves_zero_and_missing(tmp_path):
 
 def test_parser_rejects_unknown_table_type(tmp_path):
     path = tmp_path / "SINAPI_UNKNOWN.xlsx"
-    make_price_workbook(path)
+    make_price_workbook(path, sheet_name="Relatório")
 
     with pytest.raises(ValueError, match="Tipo de tabela não identificado"):
-        parse_input_price_table(path, "ISD", reference="2026-09")
+        parse_input_price_table(path, "Relatório", reference="2026-09")
 
 
 def test_ise_is_not_misclassified_as_a_third_desoneration_regime(tmp_path):
     path = tmp_path / "SINAPI_ISE_2026_09.xlsx"
-    make_price_workbook(path)
+    make_price_workbook(path, sheet_name="ISE")
 
-    result = parse_input_price_table(path, "ISD", reference="2026-09")
-    assert result.records[0].regime == Regime.NAO_DESONERADO
-    assert result.records[0].encargo_mode == EncargoMode.COM_ENCARGOS
+    result = parse_input_price_table(path, "ISE", reference="2026-09")
+    assert result.records[0].regime is None
+    assert result.records[0].encargo_mode == EncargoMode.SEM_ENCARGOS
