@@ -154,3 +154,59 @@ def test_discovery_rejects_non_caixa_download_links(tmp_path):
         discover_latest_monthly_xlsx(
             settings=make_settings(tmp_path), session=FakeSession()
         )
+
+
+def _settings_with_retries(tmp_path, retries=1):
+    return Settings(
+        environment="test",
+        log_level="INFO",
+        data_dir=tmp_path / "data",
+        raw_dir=tmp_path / "data" / "raw",
+        staging_dir=tmp_path / "data" / "staging",
+        processed_dir=tmp_path / "data" / "processed",
+        manifest_dir=tmp_path / "data" / "manifests",
+        http_timeout=2,
+        http_max_retries=retries,
+        http_backoff_seconds=0,
+    )
+
+
+def test_download_retries_http_429_then_accepts_valid_zip(tmp_path, monkeypatch):
+    from getsinapi.collectors import caixa
+
+    responses = []
+    for status in (429, 200):
+        response = requests.Response()
+        response.status_code = status
+        response.headers["Retry-After"] = "0"
+        if status == 200:
+            response._content = make_zip()
+        responses.append(response)
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return responses.pop(0)
+
+    monkeypatch.setattr(caixa.time, "sleep", lambda _: None)
+    artifact = download_monthly_xlsx(
+        "2026-10", settings=_settings_with_retries(tmp_path), session=FakeSession()
+    )
+    assert artifact.path.is_file()
+    assert artifact.size_bytes > 0
+
+
+@pytest.mark.parametrize("status", [403, 404])
+def test_download_does_not_accept_forbidden_or_missing_file(tmp_path, status):
+    response = requests.Response()
+    response.status_code = status
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return response
+
+    expected = "HTTP 403" if status == 403 else "HTTP 404"
+    with pytest.raises(CaixaDownloadError, match=expected):
+        download_monthly_xlsx(
+            "2026-10", settings=_settings_with_retries(tmp_path, retries=0),
+            session=FakeSession(),
+        )
