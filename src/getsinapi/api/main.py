@@ -43,7 +43,7 @@ class BudgetLineRequest(BaseModel):
 class BudgetRequest(BaseModel):
     reference: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     uf: str = Field(min_length=2, max_length=2)
-    regime: Regime | None = None
+    regime: Regime | None = Regime.NAO_DESONERADO
     encargo_mode: EncargoMode = EncargoMode.COM_ENCARGOS
     items: list[BudgetLineRequest] = Field(min_length=1, max_length=500)
 
@@ -257,8 +257,12 @@ def composition_cost(
     regime: Annotated[Regime | None, Query()] = None,
     encargo_mode: Annotated[EncargoMode, Query()] = EncargoMode.COM_ENCARGOS,
 ) -> dict[str, Any]:
+    effective_regime = (
+        None if encargo_mode == EncargoMode.SEM_ENCARGOS
+        else regime or Regime.NAO_DESONERADO
+    )
     calculator = _cost_calculator(
-        reference=reference, uf=uf, regime=regime, encargo_mode=encargo_mode
+        reference=reference, uf=uf, regime=effective_regime, encargo_mode=encargo_mode
     )
     return jsonable_encoder(calculator.calculate_composition(code))
 
@@ -269,10 +273,14 @@ def composition_cost(
     summary="Calcula orçamento com insumos e composições SINAPI",
 )
 def calculate_budget(request: BudgetRequest) -> dict[str, Any]:
+    effective_regime = (
+        None if request.encargo_mode == EncargoMode.SEM_ENCARGOS
+        else request.regime or Regime.NAO_DESONERADO
+    )
     calculator = _cost_calculator(
         reference=request.reference,
         uf=request.uf,
-        regime=request.regime,
+        regime=effective_regime,
         encargo_mode=request.encargo_mode,
     )
     items = [
