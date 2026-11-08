@@ -30,7 +30,6 @@ function Bars({items, labelKey, valueKey}:{items:Array<Record<string,any>>;label
   return <div className="chart-bars">{items.map((item,i)=><div className="chart-bar-row" key={String(item[labelKey])+i}><span>{String(item[labelKey])}</span><div className="chart-track"><i style={{width:(Number(item[valueKey]||0)/max*100)+"%"}}/></div><b>{number(Number(item[valueKey]||0))}</b></div>)}</div>;
 }
 function Trend({items}:{items:Array<{reference:string;input_prices:number}>}) {
- const max=Math.max(1,...items.map(x=>x.input_prices));
  const pts=items.map((x,i)=>({x:24+(items.length<2?0:i*252/(items.length-1)),y:112-x.input_prices/max*88}));
  const path=pts.map((p,i)=>(i?"L":"M")+p.x+","+p.y).join(" ");
  return <div className="trend-wrap"><svg viewBox="0 0 300 140" role="img" aria-label="Observações de preços por competência"><path d="M24 112H276" stroke="#294158" strokeWidth="1"/><path d={path} fill="none" stroke="#60e6ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>{pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r="4" fill="#60e6ff"/> )}</svg><div className="trend-labels">{items.map(x=><span key={x.reference}>{x.reference}</span>)}</div></div>;
@@ -112,7 +111,7 @@ function App() {
           const refs = await request<Reference[]>("/api/references");
           if (!active) return;
           setReferences(refs);
-          if (refs.length) setReference(refs[refs.length - 1].reference);
+          if (refs.length) setReference(refs[0].reference);
         } catch (cause) {
           if (!active) return;
           setError(cause instanceof Error ? cause.message : "Banco histórico ainda não inicializado.");
