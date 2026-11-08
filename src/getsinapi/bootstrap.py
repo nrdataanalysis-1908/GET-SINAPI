@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import time
 import zipfile
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 
 from curl_cffi import requests as browser_requests
