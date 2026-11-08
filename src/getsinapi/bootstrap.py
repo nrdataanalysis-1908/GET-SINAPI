@@ -13,7 +13,11 @@ from pathlib import Path
 
 import requests
 
-from getsinapi.collectors.caixa import CaixaDownloadError, download_monthly_xlsx, report_url
+from getsinapi.collectors.caixa import (
+    CaixaDownloadError,
+    discover_latest_monthly_xlsx,
+    download_monthly_xlsx,
+)
 from getsinapi.config import Settings
 from getsinapi.extractors.workbooks import extract_and_catalog
 from getsinapi.pipeline.normalize import normalize_reference_workbook
@@ -28,82 +32,16 @@ def _month_shift(year: int, month: int, delta: int) -> tuple[int, int]:
     return index // 12, index % 12 + 1
 
 
-def _discovery_retry_delay(response, attempt: int, settings: Settings) -> float:
-    """Respeita Retry-After e aplica backoff exponencial sem martelar a CAIXA."""
-    from datetime import datetime, timezone
-    from email.utils import parsedate_to_datetime
-
-    retry_after = response.headers.get("Retry-After") if response is not None else None
-    if retry_after:
-        try:
-            return min(max(float(retry_after), 0.0), 300.0)
-        except (TypeError, ValueError):
-            try:
-                retry_at = parsedate_to_datetime(retry_after)
-                if retry_at.tzinfo is None:
-                    retry_at = retry_at.replace(tzinfo=timezone.utc)
-                return min(max((retry_at - datetime.now(timezone.utc)).total_seconds(), 0.0), 300.0)
-            except (TypeError, ValueError, OverflowError):
-                pass
-    return min(settings.http_backoff_seconds * (2 ** (attempt - 1)), 60.0)
-
-
-def _reference_exists(reference: str, settings: Settings) -> bool:
-    url = report_url(reference)
-    headers = {"User-Agent": "GET-SINAPI/0.1 (+https://github.com/nrdataanalysis-1908/GET-SINAPI)"}
-    last_status = None
-
-    for attempt in range(1, settings.http_max_retries + 2):
-        response = None
-        try:
-            response = requests.get(
-                url, stream=True, timeout=settings.http_timeout, headers=headers,
-            )
-        except requests.RequestException as exc:
-            if attempt > settings.http_max_retries:
-                raise CaixaDownloadError(
-                    f"Falha de rede ao consultar a competência {reference}: {exc}"
-                ) from exc
-            time.sleep(_discovery_retry_delay(None, attempt, settings))
-            continue
-
-        try:
-            last_status = response.status_code
-            if response.status_code == 200:
-                return True
-            if response.status_code == 404:
-                return False
-            if response.status_code not in {408, 425, 429, 500, 502, 503, 504}:
-                raise CaixaDownloadError(
-                    f"CAIXA respondeu HTTP {response.status_code} ao consultar {reference}."
-                )
-            if attempt > settings.http_max_retries:
-                raise CaixaDownloadError(
-                    f"CAIXA continua limitando/indisponível (HTTP {response.status_code}) "
-                    f"após {settings.http_max_retries} tentativas ao consultar {reference}. "
-                    "A atualização pode ser repetida mais tarde."
-                )
-            delay = _discovery_retry_delay(response, attempt, settings)
-        finally:
-            response.close()
-
-        log.warning(
-            "CAIXA respondeu HTTP %s ao consultar %s; nova tentativa %s/%s em %.1fs.",
-            last_status, reference, attempt, settings.http_max_retries, delay,
-        )
-        time.sleep(delay)
-
-    raise CaixaDownloadError(f"Não foi possível consultar a competência {reference}.")
-
-
 def discover_latest_reference(settings: Settings, today: date | None = None) -> str:
-    current = today or date.today()
-    for offset in range(18):
-        year, month = _month_shift(current.year, current.month, -offset)
-        reference = f"{year:04d}-{month:02d}"
-        if _reference_exists(reference, settings):
-            return reference
-    raise CaixaDownloadError("Nenhuma competência SINAPI publicada foi encontrada nos últimos 18 meses.")
+    """Retorna a competência mais recente listada no catálogo oficial da CAIXA."""
+    del today  # A fonte oficial, e não o calendário, determina a competência publicada.
+    reference, _ = discover_latest_monthly_xlsx(settings=settings)
+    return reference
+
+
+def discover_latest_report(settings: Settings) -> tuple[str, str]:
+    """Retorna competência e URL XLSX exata encontrada no catálogo oficial."""
+    return discover_latest_monthly_xlsx(settings=settings)
 
 
 def _database_path(settings: Settings) -> Path:
@@ -230,7 +168,7 @@ def run_bootstrap(settings: Settings | None = None) -> dict:
     _write_status(config, status="checking", stage="discovery", percent=None,
                   message="Consultando a competência oficial mais recente.", error=None)
     try:
-        reference = discover_latest_reference(config)
+        reference, source_url = discover_latest_report(config)
         _write_status(config, reference=reference, stage="integrity",
                       message=f"Competência oficial identificada: {reference}.")
         if _loaded_and_complete(database, reference):
@@ -243,7 +181,9 @@ def run_bootstrap(settings: Settings | None = None) -> dict:
         if archive is None:
             _write_status(config, stage="download", percent=None,
                           message=f"Baixando pacote oficial {reference}.")
-            archive = download_monthly_xlsx(reference, settings=config).path
+            archive = download_monthly_xlsx(
+                reference, settings=config, source_url=source_url,
+            ).path
 
         catalog_result = _catalog_valid(config, reference, archive)
         if catalog_result is None:
