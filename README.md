@@ -10,7 +10,7 @@ Pipeline para coleta, validação, normalização e disponibilização de dados 
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-1677C8?style=for-the-badge&logo=python&logoColor=white)
 ![Data Engineering](https://img.shields.io/badge/Data_Engineering-Bronze%20%7C%20Silver%20%7C%20Gold-087BCE?style=for-the-badge)
-![Storage](https://img.shields.io/badge/Formats-XLSX%20%7C%20JSON%20%7C%20Parquet-21B8D5?style=for-the-badge)
+![Storage](https://img.shields.io/badge/Formats-XLSX%20%7C%20JSONL%20%7C%20SQLite-21B8D5?style=for-the-badge)
 ![Tests](https://img.shields.io/badge/Tests-Pytest-0B8F74?style=for-the-badge&logo=pytest&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-21D4FD?style=for-the-badge)
 
@@ -213,7 +213,7 @@ NR Data Analysis · Data Engineering
 
 A aplicação desktop combina frontend React/Vite, API FastAPI e persistência SQLite local. O painel apresenta indicadores derivados do banco, distribuição de observações por UF, série histórica, composição por tabela, pesquisa paginada de insumos e composições, cálculo recursivo e orçamento.
 
-O launcher Windows inicia os serviços em `127.0.0.1`, abre a interface no navegador padrão e mantém os dados em `%LOCALAPPDATA%\\NRDataAnalysis\\GET-SINAPI\\data`. A primeira execução pode iniciar a descoberta e a ingestão em segundo plano. O estado do bootstrap é registrado em `data/logs/bootstrap-state.json`.
+O launcher Windows inicia os serviços em `127.0.0.1`, abre a interface no navegador padrão e mantém os dados em `%LOCALAPPDATA%\NRDataAnalysis\GET-SINAPI\data`. A primeira execução pode iniciar a descoberta e a ingestão em segundo plano. O estado do bootstrap é registrado em `data/logs/bootstrap-state.json`.
 
 ### Iniciar a API em desenvolvimento
 
