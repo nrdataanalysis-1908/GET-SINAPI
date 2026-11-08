@@ -1,8 +1,9 @@
-"""Launcher Windows com migração segura da base histórica existente."""
+"""Launcher Windows com armazenamento persistente e atualização SINAPI em segundo plano."""
 from __future__ import annotations
 
 import os
 import shutil
+import socket
 import sqlite3
 import sys
 import threading
@@ -25,6 +26,8 @@ def _has_sinapi_data(path: Path) -> bool:
         return False
     try:
         with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5) as db:
+            if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                return False
             tables = {row[0] for row in db.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
@@ -44,9 +47,10 @@ def _copy_database_safely(source: Path, target: Path) -> bool:
         with sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30) as src:
             with sqlite3.connect(temporary, timeout=30) as dst:
                 src.backup(dst)
-                integrity = dst.execute("PRAGMA integrity_check").fetchone()\n                if not integrity or integrity[0] != "ok":\n                    raise sqlite3.DatabaseError("Backup SQLite falhou no integrity_check.")
+                integrity = dst.execute("PRAGMA integrity_check").fetchone()
+                if not integrity or integrity[0] != "ok":
+                    raise sqlite3.DatabaseError("Backup SQLite falhou no integrity_check.")
         if not _has_sinapi_data(temporary):
-            temporary.unlink(missing_ok=True)
             return False
         os.replace(temporary, target)
         return True
@@ -60,9 +64,6 @@ def configure_storage() -> None:
     data = base / "data"
     data.mkdir(parents=True, exist_ok=True)
     database = data / "getsinapi.sqlite3"
-
-    # Prioriza o banco local já usado no projeto do usuário; não sobrescreve
-    # uma base de destino que já contenha competências.
     candidates = [
         profile / "GET-SINAPI" / "data" / "getsinapi.sqlite3",
         Path.cwd() / "data" / "getsinapi.sqlite3",
@@ -70,16 +71,15 @@ def configure_storage() -> None:
     ]
     if not _has_sinapi_data(database):
         for candidate in candidates:
-            if candidate.resolve() == database.resolve():
-                continue
-            if _copy_database_safely(candidate, database):
+            if candidate.resolve() != database.resolve() and _copy_database_safely(candidate, database):
                 break
-
-    for name in ("raw", "staging", "processed", "manifests"):
+    for name in ("raw", "staging", "processed", "manifests", "logs"):
         (data / name).mkdir(parents=True, exist_ok=True)
     for key, value in {
-        "GETSINAPI_DATA_DIR": data, "GETSINAPI_RAW_DIR": data / "raw",
-        "GETSINAPI_STAGING_DIR": data / "staging", "GETSINAPI_PROCESSED_DIR": data / "processed",
+        "GETSINAPI_DATA_DIR": data,
+        "GETSINAPI_RAW_DIR": data / "raw",
+        "GETSINAPI_STAGING_DIR": data / "staging",
+        "GETSINAPI_PROCESSED_DIR": data / "processed",
         "GETSINAPI_MANIFEST_DIR": data / "manifests",
         "GETSINAPI_DATABASE_PATH": database,
         "GETSINAPI_ENV": "production",
@@ -129,6 +129,21 @@ class DesktopHandler(SimpleHTTPRequestHandler):
             self.wfile.write(payload)
 
     def do_GET(self):
+        if self.path == "/bootstrap-status":
+            import json
+            state_path = Path(os.environ["GETSINAPI_DATA_DIR"]) / "logs" / "bootstrap-state.json"
+            try:
+                payload = state_path.read_bytes() if state_path.is_file() else (
+                    b'{"status":"starting","message":"Inicializando atualizador."}'
+                )
+            except OSError:
+                payload = b'{"status":"unavailable"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if self.path.startswith(("/api/", "/openapi.json", "/docs")):
             return self.proxy()
         if self.path == "/":
@@ -139,24 +154,45 @@ class DesktopHandler(SimpleHTTPRequestHandler):
         return self.proxy()
 
 
+def _free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind((HOST, 0))
+        return probe.getsockname()[1]
+
+
 def main() -> None:
+    global PORT, API_PORT
     configure_storage()
     import uvicorn
     from getsinapi.api.main import app
+
+    API_PORT = _free_port()
     api = uvicorn.Server(uvicorn.Config(
         app, host=HOST, port=API_PORT, log_level="warning",
         log_config=None, access_log=False,
     ))
-    threading.Thread(target=api.run, daemon=True).start()
+    threading.Thread(target=api.run, daemon=True, name="sinapi-api").start()
     for _ in range(100):
         try:
-            urllib.request.urlopen(f"http://{HOST}:{API_PORT}/api/health", timeout=1).close()
-            break
+            with urllib.request.urlopen(f"http://{HOST}:{API_PORT}/api/health", timeout=1):
+                break
         except Exception:
             time.sleep(0.2)
     else:
         raise RuntimeError("A API local não iniciou.")
-    server = ThreadingHTTPServer((HOST, PORT), DesktopHandler)
+
+    # Atualização independente do ciclo de vida do painel: não bloqueia a abertura.
+    from getsinapi.bootstrap import run_bootstrap
+
+    def update_database():
+        try:
+            run_bootstrap()
+        except Exception:
+            pass  # Erro e etapa ficam registrados em data/logs/bootstrap-state.json.
+
+    threading.Thread(target=update_database, daemon=True, name="sinapi-bootstrap").start()
+    server = ThreadingHTTPServer((HOST, 0), DesktopHandler)
+    PORT = server.server_address[1]
     webbrowser.open(f"http://{HOST}:{PORT}")
     try:
         server.serve_forever()
