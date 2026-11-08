@@ -177,7 +177,11 @@ def test_discovery_uses_sharepoint_when_html_catalog_is_forbidden(tmp_path, monk
     assert url.endswith("SINAPI-2026-10-formato-xlsx.zip")
 
 
-def test_discovery_rejects_non_caixa_download_links(tmp_path):
+def test_discovery_falls_back_to_sharepoint_when_html_has_no_trusted_xlsx(
+    tmp_path, monkeypatch
+):
+    from getsinapi.collectors import caixa
+
     class FakeResponse:
         status_code = 200
         text = '<a href="https://evil.example/SINAPI-2026-10-formato-xlsx.zip">XLSX</a>'
@@ -189,10 +193,22 @@ def test_discovery_rejects_non_caixa_download_links(tmp_path):
         def get(self, *args, **kwargs):
             return FakeResponse()
 
-    with pytest.raises(CaixaDownloadError, match="nenhum link mensal XLSX"):
-        discover_latest_monthly_xlsx(
-            settings=make_settings(tmp_path), session=FakeSession()
+    fallback_calls = []
+
+    def fake_sharepoint(settings, session=None):
+        fallback_calls.append((settings, session))
+        return (
+            "2026-10",
+            "https://www.caixa.gov.br/Downloads/SINAPI-2026-10-formato-xlsx.zip",
         )
+
+    monkeypatch.setattr(caixa, "_discover_via_sharepoint", fake_sharepoint)
+    reference, url = discover_latest_monthly_xlsx(
+        settings=make_settings(tmp_path), session=FakeSession()
+    )
+    assert reference == "2026-10"
+    assert url.startswith("https://www.caixa.gov.br/")
+    assert len(fallback_calls) == 1
 
 
 def _settings_with_retries(tmp_path, retries=1):
