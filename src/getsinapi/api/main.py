@@ -281,3 +281,57 @@ def calculate_budget(request: BudgetRequest) -> dict[str, Any]:
     ]
     return jsonable_encoder(calculator.calculate_budget(items))
 
+
+
+@app.get("/api/analytics", tags=["Análises"], summary="Agregados reais para o painel analítico")
+def analytics(reference: str | None = Query(None, pattern=r"^\\d{4}-(0[1-9]|1[0-2])$")) -> dict[str, Any]:
+    """Retorna séries e agregações calculadas diretamente da base SINAPI."""
+    with closing(_connect()) as connection, connection:
+        refs = [dict(row) for row in connection.execute(
+            "SELECT reference, source_file, loaded_at FROM source_references ORDER BY reference"
+        ).fetchall()]
+        selected = reference or (refs[-1]["reference"] if refs else None)
+        if not selected:
+            return {"reference": None, "references": refs, "totals": {
+                "input_prices": 0, "compositions": 0, "composition_items": 0,
+                "states": 0, "unavailable_prices": 0
+            }, "by_state": [], "by_reference": [], "by_table": [], "status": []}
+        totals = connection.execute(
+            """SELECT
+                (SELECT COUNT(*) FROM input_prices WHERE reference = ?) input_prices,
+                (SELECT COUNT(*) FROM compositions WHERE reference = ?) compositions,
+                (SELECT COUNT(*) FROM composition_items WHERE reference = ?) composition_items,
+                (SELECT COUNT(DISTINCT uf) FROM input_prices WHERE reference = ?) states,
+                (SELECT COUNT(*) FROM input_prices WHERE reference = ?
+                 AND status IN ('missing','not_researched')) unavailable_prices""",
+            (selected, selected, selected, selected, selected)
+        ).fetchone()
+        by_state = [dict(row) for row in connection.execute(
+            """SELECT uf, COUNT(*) observations,
+                      COUNT(CASE WHEN price IS NOT NULL AND TRIM(price) <> '' THEN 1 END) priced,
+                      ROUND(AVG(CASE WHEN price IS NOT NULL AND TRIM(price) <> ''
+                                THEN CAST(REPLACE(price, ',', '.') AS REAL) END), 4) average_price
+               FROM input_prices WHERE reference = ?
+               GROUP BY uf ORDER BY uf""", (selected,)
+        ).fetchall()]
+        by_table = [dict(row) for row in connection.execute(
+            """SELECT table_type, COUNT(*) observations,
+                      COUNT(CASE WHEN price IS NOT NULL AND TRIM(price) <> '' THEN 1 END) priced
+               FROM input_prices WHERE reference = ? GROUP BY table_type ORDER BY table_type""",
+            (selected,)
+        ).fetchall()]
+        status = [dict(row) for row in connection.execute(
+            """SELECT status, COUNT(*) quantity FROM input_prices
+               WHERE reference = ? GROUP BY status ORDER BY quantity DESC""", (selected,)
+        ).fetchall()]
+        by_reference = [dict(row) for row in connection.execute(
+            """SELECT r.reference,
+                      (SELECT COUNT(*) FROM input_prices p WHERE p.reference=r.reference) input_prices,
+                      (SELECT COUNT(*) FROM compositions c WHERE c.reference=r.reference) compositions,
+                      (SELECT COUNT(DISTINCT uf) FROM input_prices p WHERE p.reference=r.reference) states
+               FROM source_references r ORDER BY r.reference""").fetchall()]
+        return {
+            "reference": selected, "references": refs, "totals": dict(totals),
+            "by_state": by_state, "by_reference": by_reference,
+            "by_table": by_table, "status": status
+        }
