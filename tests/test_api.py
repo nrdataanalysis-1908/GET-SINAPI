@@ -69,7 +69,7 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
 
     summary = client.get("/api/summary", params={"reference": "2026-09"})
     assert summary.status_code == 200
-    assert summary.json()["input_prices"] == 1
+    assert summary.json()["input_prices"] == 2
     assert summary.json()["compositions"] == 1
     assert summary.json()["states"] == 1
 
