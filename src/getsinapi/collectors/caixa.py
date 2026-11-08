@@ -10,11 +10,11 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 from curl_cffi import requests as browser_requests
-from urllib.parse import urljoin, urlparse
 
 from getsinapi.config import Settings
 
