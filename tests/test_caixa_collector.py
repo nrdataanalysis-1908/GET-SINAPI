@@ -172,6 +172,7 @@ def test_discovery_uses_sharepoint_when_html_catalog_is_forbidden(tmp_path, monk
         return responses.pop(0)
 
     monkeypatch.setattr(caixa, "_http_get", fake_get)
+    monkeypatch.setattr(caixa, "_discover_by_monthly_url", lambda **kwargs: None)
     reference, url = discover_latest_monthly_xlsx(settings=make_settings(tmp_path))
     assert reference == "2026-10"
     assert url.endswith("SINAPI-2026-10-formato-xlsx.zip")
@@ -203,6 +204,7 @@ def test_discovery_falls_back_to_sharepoint_when_html_has_no_trusted_xlsx(
         )
 
     monkeypatch.setattr(caixa, "_discover_via_sharepoint", fake_sharepoint)
+    monkeypatch.setattr(caixa, "_discover_by_monthly_url", lambda **kwargs: None)
     reference, url = discover_latest_monthly_xlsx(
         settings=make_settings(tmp_path), session=FakeSession()
     )
