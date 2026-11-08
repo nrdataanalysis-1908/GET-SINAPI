@@ -177,7 +177,7 @@ class DesktopHandler(SimpleHTTPRequestHandler):
             document.querySelector('#bar').style.width=(Number.isFinite(s.percent)?s.percent:8)+'%';
             document.querySelector('#error').textContent=s.error||'';
             document.querySelector('#retry').hidden=s.status!=='error';
-            if(s.status==='updated'||s.status==='up_to_date'){location.replace('/');return;}
+            if(s.stage==='complete'||s.status==='updated'||s.status==='up_to_date'){location.replace('/index.html');return;}
             }catch(e){document.querySelector('#message').textContent='Aguardando serviço local...';}}
             document.querySelector('#retry').onclick=async()=>{await fetch('/bootstrap-retry',{method:'POST'});refresh();};
             refresh();setInterval(refresh,1500);
