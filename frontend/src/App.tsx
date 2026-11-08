@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Activity, Database, Search, RefreshCw, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
+import { Activity, Search, RefreshCw, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
 
 type CatalogRow = {
   reference: string; record_type: "INSUMO" | "COMPOSICAO" | "COMPONENTE";
