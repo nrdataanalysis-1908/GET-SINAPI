@@ -28,26 +28,72 @@ def _month_shift(year: int, month: int, delta: int) -> tuple[int, int]:
     return index // 12, index % 12 + 1
 
 
+def _discovery_retry_delay(response, attempt: int, settings: Settings) -> float:
+    """Respeita Retry-After e aplica backoff exponencial sem martelar a CAIXA."""
+    from datetime import datetime, timezone
+    from email.utils import parsedate_to_datetime
+
+    retry_after = response.headers.get("Retry-After") if response is not None else None
+    if retry_after:
+        try:
+            return min(max(float(retry_after), 0.0), 300.0)
+        except (TypeError, ValueError):
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                return min(max((retry_at - datetime.now(timezone.utc)).total_seconds(), 0.0), 300.0)
+            except (TypeError, ValueError, OverflowError):
+                pass
+    return min(settings.http_backoff_seconds * (2 ** (attempt - 1)), 60.0)
+
+
 def _reference_exists(reference: str, settings: Settings) -> bool:
-    response = requests.get(
-        report_url(reference), stream=True, timeout=settings.http_timeout,
-        headers={"User-Agent": "GET-SINAPI/0.1"},
-    )
-    try:
-        if response.status_code == 404:
-            return False
-        if response.status_code in {408, 425, 429, 500, 502, 503, 504}:
-            raise CaixaDownloadError(
-                f"CAIXA indisponível temporariamente (HTTP {response.status_code}) "
-                f"ao consultar {reference}."
+    url = report_url(reference)
+    headers = {"User-Agent": "GET-SINAPI/0.1 (+https://github.com/nrdataanalysis-1908/GET-SINAPI)"}
+    last_status = None
+
+    for attempt in range(1, settings.http_max_retries + 2):
+        response = None
+        try:
+            response = requests.get(
+                url, stream=True, timeout=settings.http_timeout, headers=headers,
             )
-        if response.status_code != 200:
-            raise CaixaDownloadError(
-                f"CAIXA respondeu HTTP {response.status_code} ao consultar {reference}."
-            )
-        return True
-    finally:
-        response.close()
+        except requests.RequestException as exc:
+            if attempt > settings.http_max_retries:
+                raise CaixaDownloadError(
+                    f"Falha de rede ao consultar a competência {reference}: {exc}"
+                ) from exc
+            time.sleep(_discovery_retry_delay(None, attempt, settings))
+            continue
+
+        try:
+            last_status = response.status_code
+            if response.status_code == 200:
+                return True
+            if response.status_code == 404:
+                return False
+            if response.status_code not in {408, 425, 429, 500, 502, 503, 504}:
+                raise CaixaDownloadError(
+                    f"CAIXA respondeu HTTP {response.status_code} ao consultar {reference}."
+                )
+            if attempt > settings.http_max_retries:
+                raise CaixaDownloadError(
+                    f"CAIXA continua limitando/indisponível (HTTP {response.status_code}) "
+                    f"após {settings.http_max_retries} tentativas ao consultar {reference}. "
+                    "A atualização pode ser repetida mais tarde."
+                )
+            delay = _discovery_retry_delay(response, attempt, settings)
+        finally:
+            response.close()
+
+        log.warning(
+            "CAIXA respondeu HTTP %s ao consultar %s; nova tentativa %s/%s em %.1fs.",
+            last_status, reference, attempt, settings.http_max_retries, delay,
+        )
+        time.sleep(delay)
+
+    raise CaixaDownloadError(f"Não foi possível consultar a competência {reference}.")
 
 
 def discover_latest_reference(settings: Settings, today: date | None = None) -> str:
