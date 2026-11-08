@@ -36,7 +36,7 @@ jobs:
       - name: Package Windows application
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onedir --noconsole --name GET-SINAPI --add-data "frontend/dist;frontend/dist" --collect-all fastapi --collect-all starlette --collect-all uvicorn --collect-all pandas --collect-all openpyxl --collect-all xlrd --collect-all sqlalchemy --collect-all requests --collect-all bs4 --collect-all yaml --hidden-import getsinapi.bootstrap desktop.py
+          pyinstaller --noconfirm --clean --onedir --noconsole --name GET-SINAPI --add-data "frontend/dist;frontend/dist" --collect-all fastapi --collect-all starlette --collect-all uvicorn --collect-all pandas --collect-all openpyxl --collect-all xlrd --collect-all sqlalchemy --collect-all requests --collect-all curl_cffi --collect-all bs4 --collect-all yaml --hidden-import getsinapi.bootstrap desktop.py
           Compress-Archive -Path "dist/GET-SINAPI/*" -DestinationPath "GET-SINAPI-Windows-Preview.zip" -Force
       - uses: actions/upload-artifact@v4
         with:
