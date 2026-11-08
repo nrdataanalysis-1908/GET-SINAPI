@@ -13,7 +13,7 @@ import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-HOST, PORT, API_PORT = "127.0.0.1", 8765, 8766
+HOST, PORT, API_PORT = "127.0.0.1", 0, 0
 
 
 def resource_path(relative: str) -> Path:
@@ -44,7 +44,7 @@ def _copy_database_safely(source: Path, target: Path) -> bool:
         with sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30) as src:
             with sqlite3.connect(temporary, timeout=30) as dst:
                 src.backup(dst)
-                dst.execute("PRAGMA integrity_check").fetchone()
+                integrity = dst.execute("PRAGMA integrity_check").fetchone()\n                if not integrity or integrity[0] != "ok":\n                    raise sqlite3.DatabaseError("Backup SQLite falhou no integrity_check.")
         if not _has_sinapi_data(temporary):
             temporary.unlink(missing_ok=True)
             return False
