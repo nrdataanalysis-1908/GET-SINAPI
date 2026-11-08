@@ -184,10 +184,11 @@ def discover_latest_monthly_xlsx(
                 continue
             candidates[reference] = target
         if not candidates:
-            raise CaixaDownloadError(
-                "O catálogo oficial foi acessado, mas nenhum link mensal XLSX do SINAPI "
-                "foi identificado. A atualização foi interrompida sem alterar a base."
+            log.warning(
+                "O catálogo HTML respondeu, mas não expôs links mensais XLSX; "
+                "acionando a descoberta pelo índice SharePoint oficial."
             )
+            return _discover_via_sharepoint(settings=settings, session=session)
         return max(candidates.items(), key=lambda item: item[0])
     except (requests.RequestException, browser_requests.RequestsError) as exc:
         raise CaixaDownloadError(
