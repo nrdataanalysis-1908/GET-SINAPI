@@ -4,6 +4,11 @@ on:
     branches:
       - build/windows-exe-preview
   workflow_dispatch:
+
+concurrency:
+  group: getsinapi-windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   actions: write
