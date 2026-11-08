@@ -138,6 +138,45 @@ def test_discovery_fails_clearly_when_catalog_is_forbidden(tmp_path):
         )
 
 
+def test_discovery_uses_sharepoint_when_html_catalog_is_forbidden(tmp_path, monkeypatch):
+    from getsinapi.collectors import caixa
+
+    class FakeResponse:
+        def __init__(self, status_code, payload=None):
+            self.status_code = status_code
+            self._payload = payload or {}
+            self.text = ""
+
+        def json(self):
+            return self._payload
+
+        def close(self):
+            pass
+
+    responses = [
+        FakeResponse(403),
+        FakeResponse(200, {
+            "d": {
+                "results": [{
+                    "FileLeafRef": "SINAPI-2026-10-formato-xlsx.zip",
+                    "EncodedAbsUrl": (
+                        "https://www.caixa.gov.br/Downloads/sinapi-relatorios-mensais/"
+                        "SINAPI-2026-10-formato-xlsx.zip"
+                    ),
+                }]
+            }
+        }),
+    ]
+
+    def fake_get(url, **kwargs):
+        return responses.pop(0)
+
+    monkeypatch.setattr(caixa, "_http_get", fake_get)
+    reference, url = discover_latest_monthly_xlsx(settings=make_settings(tmp_path))
+    assert reference == "2026-10"
+    assert url.endswith("SINAPI-2026-10-formato-xlsx.zip")
+
+
 def test_discovery_rejects_non_caixa_download_links(tmp_path):
     class FakeResponse:
         status_code = 200
