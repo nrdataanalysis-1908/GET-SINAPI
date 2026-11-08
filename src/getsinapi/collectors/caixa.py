@@ -12,6 +12,9 @@ from io import BytesIO
 from pathlib import Path
 
 import requests
+from bs4 import BeautifulSoup
+from curl_cffi import requests as browser_requests
+from urllib.parse import urljoin, urlparse
 
 from getsinapi.config import Settings
 
@@ -19,6 +22,11 @@ REFERENCE_PATTERN = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 BASE_URL = (
     "https://www.caixa.gov.br/Downloads/sinapi-relatorios-mensais/"
     "SINAPI-{reference}-formato-xlsx.zip"
+)
+DOWNLOADS_PAGE_URL = "https://www.caixa.gov.br/site/paginas/downloads.aspx"
+DOWNLOAD_LINK_PATTERN = re.compile(
+    r"SINAPI[-_](20\d{2})[-_](0[1-9]|1[0-2])[-_ ]formato[-_ ]xlsx",
+    re.IGNORECASE,
 )
 RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
 
@@ -54,23 +62,103 @@ def _retry_delay(response: requests.Response | None, attempt: int, base: float) 
     return min(base * (2 ** (attempt - 1)), 60.0)
 
 
+
+def _http_get(url: str, *, timeout: int, headers: dict, session=None):
+    """Acessa a CAIXA com fingerprint de navegador para contornar bloqueios anti-bot."""
+    if session is not None:
+        return session.get(url, timeout=timeout, headers=headers)
+    return browser_requests.get(
+        url, timeout=timeout, headers=headers, impersonate="chrome",
+        allow_redirects=True,
+    )
+
+
+def discover_latest_monthly_xlsx(
+    settings: Settings | None = None,
+    session=None,
+) -> tuple[str, str]:
+    """Descobre a última competência XLSX pelos links publicados no catálogo oficial."""
+    settings = settings or Settings.from_env()
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Referer": "https://www.caixa.gov.br/",
+    }
+    response = None
+    try:
+        response = _http_get(
+            DOWNLOADS_PAGE_URL, timeout=settings.http_timeout,
+            headers=headers, session=session,
+        )
+        if response.status_code != 200:
+            raise CaixaDownloadError(
+                f"Catálogo oficial da CAIXA respondeu HTTP {response.status_code}; "
+                "não foi possível identificar a última competência publicada."
+            )
+        soup = BeautifulSoup(response.text, "html.parser")
+        candidates: dict[str, str] = {}
+        for anchor in soup.find_all("a", href=True):
+            href = str(anchor.get("href", "")).strip()
+            label = f"{anchor.get_text(' ', strip=True)} {href}"
+            match = DOWNLOAD_LINK_PATTERN.search(label)
+            if not match:
+                continue
+            reference = f"{match.group(1)}-{match.group(2)}"
+            target = urljoin(DOWNLOADS_PAGE_URL, href)
+            parsed = urlparse(target)
+            hostname = (parsed.hostname or "").lower()
+            if parsed.scheme != "https" or not (
+                hostname == "caixa.gov.br" or hostname.endswith(".caixa.gov.br")
+            ):
+                continue
+            candidates[reference] = target
+        if not candidates:
+            raise CaixaDownloadError(
+                "O catálogo oficial foi acessado, mas nenhum link mensal XLSX do SINAPI "
+                "foi identificado. A atualização foi interrompida sem alterar a base."
+            )
+        return max(candidates.items(), key=lambda item: item[0])
+    except (requests.RequestException, browser_requests.exceptions.RequestsError) as exc:
+        raise CaixaDownloadError(
+            f"Falha de rede ao consultar o catálogo oficial da CAIXA: {exc}"
+        ) from exc
+    finally:
+        if response is not None:
+            response.close()
+
+
 def download_monthly_xlsx(
     reference: str,
     settings: Settings | None = None,
     session: requests.Session | None = None,
+    source_url: str | None = None,
 ) -> DownloadArtifact:
     """Baixa, valida e registra o ZIP XLSX mensal; nunca substitui um arquivo válido."""
-    url = report_url(reference)
+    url = source_url or report_url(reference)
     settings = settings or Settings.from_env()
     settings.create_data_directories()
-    http = session or requests.Session()
-    headers = {"User-Agent": "GET-SINAPI/0.1 (+https://github.com/nrdataanalysis-1908/GET-SINAPI)"}
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/zip,application/octet-stream,*/*",
+        "Referer": DOWNLOADS_PAGE_URL,
+    }
     response = None
 
     for attempt in range(1, settings.http_max_retries + 2):
         try:
-            response = http.get(url, timeout=settings.http_timeout, headers=headers)
-        except requests.RequestException as exc:
+            response = _http_get(
+                url, timeout=settings.http_timeout, headers=headers, session=session,
+            )
+        except (requests.RequestException, browser_requests.exceptions.RequestsError) as exc:
             if attempt > settings.http_max_retries:
                 raise CaixaDownloadError(f"Falha de rede ao baixar {url}: {exc}") from exc
             time.sleep(_retry_delay(None, attempt, settings.http_backoff_seconds))
@@ -79,15 +167,25 @@ def download_monthly_xlsx(
         if response.status_code == 200:
             break
         if response.status_code not in RETRYABLE_STATUS or attempt > settings.http_max_retries:
+            status = response.status_code
+            response.close()
+            if status == 403:
+                raise CaixaDownloadError(
+                    f"CAIXA negou o download da competência {reference} (HTTP 403), "
+                    "mesmo após a descoberta pelo catálogo oficial. Nenhum arquivo foi aceito."
+                )
             raise CaixaDownloadError(
-                f"CAIXA respondeu HTTP {response.status_code} para a competência {reference}."
+                f"CAIXA respondeu HTTP {status} para a competência {reference}."
             )
-        time.sleep(_retry_delay(response, attempt, settings.http_backoff_seconds))
+        delay = _retry_delay(response, attempt, settings.http_backoff_seconds)
+        response.close()
+        time.sleep(delay)
 
     if response is None or response.status_code != 200:
         raise CaixaDownloadError(f"Não foi possível obter a competência {reference}.")
 
     payload = response.content
+    response.close()
     if not payload or not zipfile.is_zipfile(BytesIO(payload)):
         raise CaixaDownloadError(
             "A resposta não é um ZIP válido. O pacote não será salvo nem tratado como dado SINAPI."
