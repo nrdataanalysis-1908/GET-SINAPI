@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import json
 import re
 import time
@@ -28,6 +29,7 @@ DOWNLOAD_LINK_PATTERN = re.compile(
     r"SINAPI[-_](20\d{2})[-_](0[1-9]|1[0-2])[-_ ]formato[-_ ]xlsx",
     re.IGNORECASE,
 )
+log = logging.getLogger(__name__)
 RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
 
 
