@@ -211,6 +211,38 @@ def test_discovery_falls_back_to_sharepoint_when_html_has_no_trusted_xlsx(
     assert len(fallback_calls) == 1
 
 
+def test_discovery_probes_official_monthly_zip_when_indexes_are_empty(tmp_path, monkeypatch):
+    from getsinapi.collectors import caixa
+
+    class FakeResponse:
+        def __init__(self, status_code, content=b""):
+            self.status_code = status_code
+            self.content = content
+            self.text = "<html></html>"
+
+        def close(self):
+            pass
+
+    responses = [
+        FakeResponse(200),  # HTML catalog without monthly links
+        FakeResponse(404),  # newest candidate is not published
+        FakeResponse(200, make_zip()),  # next candidate is a valid official ZIP
+    ]
+    requested = []
+
+    def fake_get(url, **kwargs):
+        requested.append(url)
+        return responses.pop(0)
+
+    monkeypatch.setattr(caixa, "_http_get", fake_get)
+    reference, url = discover_latest_monthly_xlsx(
+        settings=make_settings(tmp_path)
+    )
+    assert reference == url.split("SINAPI-")[1][:7]
+    assert url.startswith("https://www.caixa.gov.br/Downloads/sinapi-relatorios-mensais/")
+    assert len(requested) == 3
+
+
 def _settings_with_retries(tmp_path, retries=1):
     return Settings(
         environment="test",
