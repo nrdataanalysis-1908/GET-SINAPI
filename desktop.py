@@ -74,7 +74,10 @@ def main() -> None:
     configure_storage()
     import uvicorn
     from getsinapi.api.main import app
-    api = uvicorn.Server(uvicorn.Config(app, host=HOST, port=API_PORT, log_level="warning"))
+    api = uvicorn.Server(uvicorn.Config(
+        app, host=HOST, port=API_PORT, log_level="warning",
+        log_config=None, access_log=False,
+    ))
     threading.Thread(target=api.run, daemon=True).start()
     for _ in range(100):
         try:
