@@ -25,3 +25,43 @@
 .pagination{display:flex;align-items:center;justify-content:flex-end;gap:14px;padding:14px 2px 0;color:#8295aa;font:10px 'DM Mono',monospace}
 .pagination .secondary-button{padding:8px 12px}
 @media(max-width:1050px){.analytics-grid{grid-template-columns:1fr}.chart-bar-row{grid-template-columns:45px minmax(40px,1fr) 62px}}
+
+
+/* Catálogo unificado SINAPI */
+.catalog-sidebar-copy{color:#91a8bc;font-size:12px;line-height:1.65;padding:0 22px;max-width:220px}
+.offline-dot{background:#e5a34b!important;box-shadow:0 0 10px #e5a34b!important}
+.catalog-heading{align-items:center}
+.catalog-total{display:flex;flex-direction:column;gap:6px;padding:14px 18px;border:1px solid #203b50;border-radius:12px;background:#0e1b28;min-width:180px}
+.catalog-total span,.catalog-filters label>span{font-size:10px;letter-spacing:1.1px;color:#8199ad;font-weight:700}
+.catalog-total strong{font-size:25px;color:#60e6ff;font-variant-numeric:tabular-nums}
+.catalog-panel{min-width:0}
+.catalog-live{display:flex;align-items:center;gap:8px;color:#a7bdcf;font-size:12px}
+.catalog-live-dot{width:7px;height:7px;border-radius:50%;background:#4ed6a0;box-shadow:0 0 9px #4ed6a0}
+.catalog-filters{display:grid;grid-template-columns:minmax(240px,2fr) minmax(130px,.8fr) minmax(180px,1fr) auto;gap:12px;align-items:end;padding:18px 0 20px}
+.catalog-filters label{display:flex;flex-direction:column;gap:8px;min-width:0}
+.catalog-filters input,.catalog-filters select{height:40px;width:100%;border:1px solid #294258;border-radius:7px;background:#0a1420;color:#dceaf5;padding:0 11px;outline:none}
+.catalog-filters input:focus,.catalog-filters select:focus{border-color:#60e6ff}
+.catalog-search>div{height:40px;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #294258;border-radius:7px;background:#0a1420;color:#60e6ff}
+.catalog-search input{border:0!important;background:transparent!important;padding:0!important;min-width:0}
+.catalog-filters .primary-button{height:40px;white-space:nowrap}
+.catalog-table-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;color:#91a8bc;font-size:12px}
+.catalog-table-meta>span{display:flex;align-items:center;gap:8px}
+.catalog-refresh{display:flex;align-items:center;gap:7px;border:0;background:transparent;color:#60e6ff;font-size:12px;cursor:pointer}
+.catalog-refresh:disabled{opacity:.5;cursor:wait}
+.catalog-table-wrap{max-height:calc(100vh - 390px);min-height:280px;overflow:auto;border:1px solid #20384c;border-radius:8px}
+.catalog-table{min-width:1450px;width:100%;border-collapse:separate;border-spacing:0}
+.catalog-table thead{position:sticky;top:0;z-index:2;background:#142333}
+.catalog-table th{white-space:nowrap;background:#142333;color:#9eb4c7;font-size:10px;letter-spacing:.7px}
+.catalog-table td{white-space:nowrap;font-size:12px;color:#c3d2df;border-bottom:1px solid #1d3041;padding:10px 12px}
+.catalog-table tbody tr:hover{background:#112334}
+.catalog-table .catalog-description{min-width:280px;max-width:420px;white-space:normal;line-height:1.45}
+.catalog-source{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.catalog-type{display:inline-flex;padding:4px 7px;border-radius:5px;font-size:9px;font-weight:700;letter-spacing:.3px;background:#18364a;color:#60e6ff}
+.type-composicao{background:#28314a;color:#b9c7ff}
+.type-componente{background:#293b32;color:#9de0b5}
+.catalog-parent{display:block;color:#8199ad;font-size:10px;margin-top:3px}
+.catalog-pagination{display:flex;justify-content:space-between;align-items:center;padding-top:15px;color:#91a8bc;font-size:12px}
+.catalog-pagination>div{display:flex;gap:8px}
+.catalog-pagination .secondary-button{display:flex;align-items:center;gap:5px}
+@media(max-width:900px){.catalog-filters{grid-template-columns:1fr 1fr}.catalog-search{grid-column:1/-1}.catalog-heading{align-items:flex-start;gap:16px;flex-direction:column}.catalog-table-wrap{max-height:calc(100vh - 450px)}}
+@media(max-width:560px){.catalog-filters{grid-template-columns:1fr}.catalog-search{grid-column:auto}.catalog-table-meta,.catalog-pagination{align-items:flex-start;flex-direction:column}.catalog-sidebar-copy{display:none}}
