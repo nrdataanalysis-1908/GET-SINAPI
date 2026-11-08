@@ -30,6 +30,7 @@ function Bars({items, labelKey, valueKey}:{items:Array<Record<string,any>>;label
   return <div className="chart-bars">{items.map((item,i)=><div className="chart-bar-row" key={String(item[labelKey])+i}><span>{String(item[labelKey])}</span><div className="chart-track"><i style={{width:(Number(item[valueKey]||0)/max*100)+"%"}}/></div><b>{number(Number(item[valueKey]||0))}</b></div>)}</div>;
 }
 function Trend({items}:{items:Array<{reference:string;input_prices:number}>}) {
+ const max=Math.max(1,...items.map(x=>x.input_prices));
  const pts=items.map((x,i)=>({x:24+(items.length<2?0:i*252/(items.length-1)),y:112-x.input_prices/max*88}));
  const path=pts.map((p,i)=>(i?"L":"M")+p.x+","+p.y).join(" ");
  return <div className="trend-wrap"><svg viewBox="0 0 300 140" role="img" aria-label="Observações de preços por competência"><path d="M24 112H276" stroke="#294158" strokeWidth="1"/><path d={path} fill="none" stroke="#60e6ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>{pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r="4" fill="#60e6ff"/> )}</svg><div className="trend-labels">{items.map(x=><span key={x.reference}>{x.reference}</span>)}</div></div>;
@@ -92,6 +93,7 @@ function App() {
     try {
       const data = await request<Summary>(`/api/summary?reference=${encodeURIComponent(ref)}`);
       setSummary(data);
+      void loadAnalytics(ref);
       setError("");
     } catch (cause) {
       setSummary(null);
@@ -155,7 +157,11 @@ function App() {
     try {
       const params = new URLSearchParams({ reference, limit: String(PAGE_SIZE), offset: String(nextPage * PAGE_SIZE) });
       if (search.trim()) params.set("search", search.trim());
-      setCompositions(await request<Composition[]>(`/api/composicoes?${params.toString()}`));
+      const [rows,count] = await Promise.all([
+        request<Composition[]>(`/api/composicoes?${params.toString()}`),
+        request<{total:number}>(`/api/composicoes/count?${params.toString()}`)
+      ]);
+      setCompositions(rows); setCompositionTotal(count.total); setPageIndex(nextPage);
       setSelectedCost(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao pesquisar composições.");
