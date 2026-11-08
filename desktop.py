@@ -1,6 +1,7 @@
 """Launcher Windows com armazenamento persistente e atualização SINAPI em segundo plano."""
 from __future__ import annotations
 
+import logging
 import os
 import socket
 import sqlite3
@@ -14,6 +15,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HOST, PORT, API_PORT = "127.0.0.1", 0, 0
+log = logging.getLogger("getsinapi.desktop")
 
 
 def resource_path(relative: str) -> Path:
@@ -43,12 +45,14 @@ def _copy_database_safely(source: Path, target: Path) -> bool:
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".sqlite3.migrating")
     try:
-        with sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30) as src:
-            with sqlite3.connect(temporary, timeout=30) as dst:
-                src.backup(dst)
-                integrity = dst.execute("PRAGMA integrity_check").fetchone()
-                if not integrity or integrity[0] != "ok":
-                    raise sqlite3.DatabaseError("Backup SQLite falhou no integrity_check.")
+        with (
+            sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30) as src,
+            sqlite3.connect(temporary, timeout=30) as dst,
+        ):
+            src.backup(dst)
+            integrity = dst.execute("PRAGMA integrity_check").fetchone()
+            if not integrity or integrity[0] != "ok":
+                raise sqlite3.DatabaseError("Backup SQLite falhou no integrity_check.")
         if not _has_sinapi_data(temporary):
             return False
         os.replace(temporary, target)
@@ -119,7 +123,8 @@ class DesktopHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - o proxy converte falhas inesperadas em HTTP 502.
+            log.exception("Falha inesperada no proxy da API local.")
             payload = ('{"detail":"API indisponível: ' + type(exc).__name__ + '"}').encode()
             self.send_response(502)
             self.send_header("Content-Type", "application/json")
@@ -142,7 +147,7 @@ class DesktopHandler(SimpleHTTPRequestHandler):
                     b'{"status":"starting","stage":"discovery","message":"Consultando a CAIXA."}'
                 )
             except OSError:
-                payload = '{"status":"unavailable","message":"Estado indisponível."}'.encode("utf-8")
+                payload = '{"status":"unavailable","message":"Estado indisponível."}'.encode()
             return self._send(200, "application/json; charset=utf-8", payload)
         if self.path == "/" and not _has_sinapi_data(
             Path(os.environ["GETSINAPI_DATABASE_PATH"])
@@ -176,7 +181,7 @@ class DesktopHandler(SimpleHTTPRequestHandler):
             }catch(e){document.querySelector('#message').textContent='Aguardando serviço local...';}}
             document.querySelector('#retry').onclick=async()=>{await fetch('/bootstrap-retry',{method:'POST'});refresh();};
             refresh();setInterval(refresh,1500);
-            </script></html>""".encode("utf-8")
+            </script></html>""".encode()
             return self._send(200, "text/html; charset=utf-8", page)
         if self.path.startswith(("/api/", "/openapi.json", "/docs")):
             return self.proxy()
@@ -202,6 +207,7 @@ def main() -> None:
     global PORT, API_PORT
     configure_storage()
     import uvicorn
+
     from getsinapi.api.main import app
 
     API_PORT = _free_port()
@@ -214,7 +220,7 @@ def main() -> None:
         try:
             with urllib.request.urlopen(f"http://{HOST}:{API_PORT}/api/health", timeout=1):
                 break
-        except Exception:
+        except (urllib.error.URLError, OSError, TimeoutError):
             time.sleep(0.2)
     else:
         raise RuntimeError("A API local não iniciou.")
@@ -225,8 +231,8 @@ def main() -> None:
     def update_database():
         try:
             run_bootstrap()
-        except Exception:
-            pass  # Erro e etapa ficam registrados em data/logs/bootstrap-state.json.
+        except Exception:  # noqa: BLE001 - run_bootstrap já persiste e registra a falha.
+            log.exception("Atualização automática do SINAPI interrompida.")
 
     threading.Thread(target=update_database, daemon=True, name="sinapi-bootstrap").start()
     server = ThreadingHTTPServer((HOST, 0), DesktopHandler)
