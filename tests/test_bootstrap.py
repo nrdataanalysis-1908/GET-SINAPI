@@ -27,3 +27,15 @@ def test_database_is_invalid_when_empty(tmp_path):
     path = tmp_path / "empty.sqlite3"
     sqlite3.connect(path).close()
     assert not database_is_valid(path)
+
+
+
+def test_bootstrap_coalesces_concurrent_runs(monkeypatch):
+    from getsinapi import bootstrap
+
+    assert bootstrap._BOOTSTRAP_LOCK.acquire(blocking=False)
+    try:
+        result = bootstrap.run_bootstrap()
+        assert result["status"] == "already_running"
+    finally:
+        bootstrap._BOOTSTRAP_LOCK.release()
