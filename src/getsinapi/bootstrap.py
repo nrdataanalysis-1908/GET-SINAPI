@@ -201,7 +201,7 @@ def run_bootstrap(settings: Settings | None = None) -> dict:
 
         workbook_path = None
         for entry in catalog.get("workbooks", []):
-            if set(sheet["name"] for sheet in entry.get("sheets", [])) >= REQUIRED_SHEETS:
+            if {sheet["name"] for sheet in entry.get("sheets", [])} >= REQUIRED_SHEETS:
                 candidate = destination / entry["relative_path"]
                 if candidate.is_file():
                     workbook_path = candidate
