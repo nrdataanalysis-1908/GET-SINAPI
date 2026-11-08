@@ -132,7 +132,7 @@ def test_discovery_fails_clearly_when_catalog_is_forbidden(tmp_path):
         def get(self, *args, **kwargs):
             return FakeResponse()
 
-    with pytest.raises(CaixaDownloadError, match=r"(?i)catálogo oficial.*HTTP 403"):
+    with pytest.raises(CaixaDownloadError, match=r"(?i)índice SharePoint oficial.*HTTP 403"):
         discover_latest_monthly_xlsx(
             settings=make_settings(tmp_path), session=FakeSession()
         )
