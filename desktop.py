@@ -143,7 +143,7 @@ class DesktopHandler(SimpleHTTPRequestHandler):
                     b'{"status":"starting","stage":"discovery","message":"Consultando a CAIXA."}'
                 )
             except OSError:
-                payload = b'{"status":"unavailable","message":"Estado indisponível."}'
+                payload = '{"status":"unavailable","message":"Estado indisponível."}'.encode("utf-8")
             return self._send(200, "application/json; charset=utf-8", payload)
         if self.path == "/" and not _has_sinapi_data(
             Path(os.environ["GETSINAPI_DATABASE_PATH"])
