@@ -123,7 +123,7 @@ class DesktopHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
-        except Exception as exc:  # noqa: BLE001 - o proxy converte falhas inesperadas em HTTP 502.
+        except Exception as exc:
             log.exception("Falha inesperada no proxy da API local.")
             payload = ('{"detail":"API indisponível: ' + type(exc).__name__ + '"}').encode()
             self.send_response(502)
@@ -231,7 +231,7 @@ def main() -> None:
     def update_database():
         try:
             run_bootstrap()
-        except Exception:  # noqa: BLE001 - run_bootstrap já persiste e registra a falha.
+        except Exception:
             log.exception("Atualização automática do SINAPI interrompida.")
 
     threading.Thread(target=update_database, daemon=True, name="sinapi-bootstrap").start()
