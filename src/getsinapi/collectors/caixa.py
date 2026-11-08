@@ -80,11 +80,6 @@ def discover_latest_monthly_xlsx(
     """Descobre a última competência XLSX pelos links publicados no catálogo oficial."""
     settings = settings or Settings.from_env()
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/131.0.0.0 Safari/537.36"
-        ),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
         "Referer": "https://www.caixa.gov.br/",
@@ -143,11 +138,6 @@ def download_monthly_xlsx(
     settings = settings or Settings.from_env()
     settings.create_data_directories()
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/131.0.0.0 Safari/537.36"
-        ),
         "Accept": "application/zip,application/octet-stream,*/*",
         "Referer": DOWNLOADS_PAGE_URL,
     }
