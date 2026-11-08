@@ -75,6 +75,64 @@ def _http_get(url: str, *, timeout: int, headers: dict, session=None):
     )
 
 
+def _discover_by_monthly_url(settings: Settings, session=None, months_back: int = 12) -> tuple[str, str] | None:
+    """Probe the official monthly ZIP URL used by the CAIXA publication pattern.
+
+    The CAIXA HTML/SharePoint indexes are not consistently populated. PulseSINAPI
+    uses this stable URL template directly, so probe recent references newest-first.
+    A URL is accepted only when the response is a valid ZIP archive.
+    """
+    now = datetime.now(UTC)
+    headers = {
+        "Accept": "application/zip,application/octet-stream,*/*",
+        "Referer": DOWNLOADS_PAGE_URL,
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+    }
+    year, month = now.year, now.month
+    for _ in range(months_back):
+        reference = f"{year:04d}-{month:02d}"
+        url = report_url(reference)
+        for attempt in range(1, settings.http_max_retries + 2):
+            response = None
+            try:
+                response = _http_get(
+                    url, timeout=settings.http_timeout, headers=headers, session=session,
+                )
+                status = response.status_code
+                if status == 200:
+                    payload = response.content
+                    if payload and zipfile.is_zipfile(BytesIO(payload)):
+                        log.info("Pacote mensal oficial identificado por URL direta: %s", reference)
+                        return reference, url
+                    log.warning("URL mensal %s respondeu 200, mas o conteúdo não é ZIP.", reference)
+                    break
+                if status in RETRYABLE_STATUS and attempt <= settings.http_max_retries:
+                    delay = _retry_delay(response, attempt, settings.http_backoff_seconds)
+                    response.close()
+                    response = None
+                    time.sleep(delay)
+                    continue
+                if status not in {403, 404, 410}:
+                    log.warning("Sondagem da competência %s retornou HTTP %s.", reference, status)
+                break
+            except (requests.RequestException, browser_requests.RequestsError) as exc:
+                if attempt > settings.http_max_retries:
+                    log.warning("Falha ao sondar a competência %s: %s", reference, exc)
+                    break
+                time.sleep(_retry_delay(None, attempt, settings.http_backoff_seconds))
+            finally:
+                if response is not None:
+                    response.close()
+        month -= 1
+        if month == 0:
+            year -= 1
+            month = 12
+    return None
+
+
 def _discover_via_sharepoint(settings: Settings, session=None) -> tuple[str, str]:
     """Descobre pacotes mensais pelo índice SharePoint oficial quando o catálogo HTML falha."""
     endpoint = (
@@ -165,6 +223,9 @@ def discover_latest_monthly_xlsx(
                 "Catálogo HTML da CAIXA indisponível (HTTP %s); tentando o índice oficial SharePoint.",
                 catalog_status,
             )
+            direct = _discover_by_monthly_url(settings=settings, session=session)
+            if direct:
+                return direct
             return _discover_via_sharepoint(settings=settings, session=session)
         soup = BeautifulSoup(response.text, "html.parser")
         candidates: dict[str, str] = {}
@@ -188,6 +249,9 @@ def discover_latest_monthly_xlsx(
                 "O catálogo HTML respondeu, mas não expôs links mensais XLSX; "
                 "acionando a descoberta pelo índice SharePoint oficial."
             )
+            direct = _discover_by_monthly_url(settings=settings, session=session)
+            if direct:
+                return direct
             return _discover_via_sharepoint(settings=settings, session=session)
         return max(candidates.items(), key=lambda item: item[0])
     except (requests.RequestException, browser_requests.RequestsError) as exc:
