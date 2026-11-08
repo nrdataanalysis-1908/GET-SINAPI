@@ -73,6 +73,71 @@ def _http_get(url: str, *, timeout: int, headers: dict, session=None):
     )
 
 
+def _discover_via_sharepoint(settings: Settings, session=None) -> tuple[str, str]:
+    """Descobre pacotes mensais pelo índice SharePoint oficial quando o catálogo HTML falha."""
+    endpoint = (
+        "https://www.caixa.gov.br/_api/web/lists/getbytitle('Downloads')/Items"
+        "?$select=Title,FileLeafRef,EncodedAbsUrl&$filter=FSObjType%20eq%200"
+        "%20and%20substringof('SINAPI',FileLeafRef)&$top=5000"
+    )
+    headers = {
+        "Accept": "application/json;odata=verbose",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Referer": "https://www.caixa.gov.br/",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+    }
+    candidates: dict[str, str] = {}
+    next_url: str | None = endpoint
+    pages = 0
+    while next_url and pages < 4:
+        response = None
+        try:
+            response = _http_get(
+                next_url, timeout=settings.http_timeout, headers=headers, session=session,
+            )
+            if response.status_code != 200:
+                raise CaixaDownloadError(
+                    "Índice SharePoint oficial da CAIXA indisponível "
+                    f"(HTTP {response.status_code}); nenhuma fonte alternativa validada."
+                )
+            payload = response.json()
+            data = payload.get("d", payload)
+            items = data.get("results", data.get("value", []))
+            for item in items:
+                filename = str(item.get("FileLeafRef") or item.get("Title") or "")
+                target = str(item.get("EncodedAbsUrl") or "")
+                match = DOWNLOAD_LINK_PATTERN.search(filename)
+                if not match or not filename.lower().endswith(".zip") or not target:
+                    continue
+                reference = f"{match.group(1)}-{match.group(2)}"
+                parsed = urlparse(target)
+                hostname = (parsed.hostname or "").lower()
+                if parsed.scheme == "https" and (
+                    hostname == "caixa.gov.br" or hostname.endswith(".caixa.gov.br")
+                ):
+                    candidates[reference] = target
+            next_url = data.get("__next") or payload.get("@odata.nextLink")
+            if next_url:
+                next_url = urljoin("https://www.caixa.gov.br", next_url)
+            pages += 1
+        except (requests.RequestException, browser_requests.RequestsError, ValueError) as exc:
+            raise CaixaDownloadError(
+                f"Falha ao consultar o índice SharePoint oficial da CAIXA: {exc}"
+            ) from exc
+        finally:
+            if response is not None:
+                response.close()
+    if not candidates:
+        raise CaixaDownloadError(
+            "Catálogo HTML e índice SharePoint da CAIXA não forneceram "
+            "um pacote mensal XLSX oficial identificável."
+        )
+    return max(candidates.items(), key=lambda item: item[0])
+
+
 def discover_latest_monthly_xlsx(
     settings: Settings | None = None,
     session=None,
@@ -91,10 +156,14 @@ def discover_latest_monthly_xlsx(
             headers=headers, session=session,
         )
         if response.status_code != 200:
-            raise CaixaDownloadError(
-                f"Catálogo oficial da CAIXA respondeu HTTP {response.status_code}; "
-                "não foi possível identificar a última competência publicada."
+            catalog_status = response.status_code
+            response.close()
+            response = None
+            log.warning(
+                "Catálogo HTML da CAIXA indisponível (HTTP %s); tentando o índice oficial SharePoint.",
+                catalog_status,
             )
+            return _discover_via_sharepoint(settings=settings, session=session)
         soup = BeautifulSoup(response.text, "html.parser")
         candidates: dict[str, str] = {}
         for anchor in soup.find_all("a", href=True):
