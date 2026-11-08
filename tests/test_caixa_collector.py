@@ -7,6 +7,7 @@ import requests
 
 from getsinapi.collectors.caixa import (
     CaixaDownloadError,
+    discover_latest_monthly_xlsx,
     download_monthly_xlsx,
     report_url,
     safe_extract_zip,
@@ -82,3 +83,74 @@ def test_safe_extract_blocks_zip_slip(tmp_path):
 
     with pytest.raises(CaixaDownloadError, match="Caminho inseguro"):
         safe_extract_zip(archive_path, tmp_path / "out")
+
+
+def test_discovery_uses_official_catalog_and_selects_latest_xlsx(tmp_path):
+    from getsinapi.collectors import caixa
+
+    html = """
+    <html><body>
+      <a href="/Downloads/sinapi-relatorios-mensais/SINAPI-2026-09-formato-xlsx.zip">
+        SINAPI-2026-09-formato-xlsx
+      </a>
+      <a href="/Downloads/sinapi-relatorios-mensais/SINAPI-2026-10-formato-xlsx.zip">
+        SINAPI-2026-10-formato-xlsx
+      </a>
+      <a href="/Downloads/sinapi-relatorios-mensais/SINAPI-2026-11-formato-pdf.zip">
+        SINAPI-2026-11-formato-pdf
+      </a>
+    </body></html>
+    """
+
+    class FakeResponse:
+        status_code = 200
+        text = html
+
+        def close(self):
+            pass
+
+    class FakeSession:
+        def get(self, url, **kwargs):
+            assert url == caixa.DOWNLOADS_PAGE_URL
+            return FakeResponse()
+
+    reference, url = discover_latest_monthly_xlsx(
+        settings=make_settings(tmp_path), session=FakeSession()
+    )
+    assert reference == "2026-10"
+    assert url.endswith("SINAPI-2026-10-formato-xlsx.zip")
+
+
+def test_discovery_fails_clearly_when_catalog_is_forbidden(tmp_path):
+    class FakeResponse:
+        status_code = 403
+
+        def close(self):
+            pass
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    with pytest.raises(CaixaDownloadError, match="catálogo oficial.*HTTP 403"):
+        discover_latest_monthly_xlsx(
+            settings=make_settings(tmp_path), session=FakeSession()
+        )
+
+
+def test_discovery_rejects_non_caixa_download_links(tmp_path):
+    class FakeResponse:
+        status_code = 200
+        text = '<a href="https://evil.example/SINAPI-2026-10-formato-xlsx.zip">XLSX</a>'
+
+        def close(self):
+            pass
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return FakeResponse()
+
+    with pytest.raises(CaixaDownloadError, match="nenhum link mensal XLSX"):
+        discover_latest_monthly_xlsx(
+            settings=make_settings(tmp_path), session=FakeSession()
+        )
