@@ -137,8 +137,9 @@ function App() {
     setBusy(true); setError("");
     try {
       const params = new URLSearchParams({
-        reference, uf, regime, encargo_mode: encargoMode, limit: String(PAGE_SIZE), offset: String(nextPage * PAGE_SIZE),
+        reference, uf, encargo_mode: encargoMode, limit: String(PAGE_SIZE), offset: String(nextPage * PAGE_SIZE),
       });
+      if (encargoMode !== "sem_encargos") params.set("regime", regime);
       if (search.trim()) params.set("search", search.trim());
       const [rows,count] = await Promise.all([
         request<InputPrice[]>(`/api/insumos?${params.toString()}`),
@@ -171,7 +172,8 @@ function App() {
   async function calculateComposition(code: string) {
     setBusy(true); setError("");
     try {
-      const params = new URLSearchParams({ reference, uf, regime, encargo_mode: encargoMode });
+      const params = new URLSearchParams({ reference, uf, encargo_mode: encargoMode });
+      if (encargoMode !== "sem_encargos") params.set("regime", regime);
       setSelectedCost(await request<CostResult>(`/api/composicoes/${encodeURIComponent(code)}/custo?${params.toString()}`));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha no cálculo da composição.");
@@ -186,7 +188,10 @@ function App() {
       if (!items.length) throw new Error("Informe ao menos um código e uma quantidade.");
       const result = await request<BudgetResult>("/api/budget", {
         method: "POST",
-        body: JSON.stringify({ reference, uf, regime, encargo_mode: encargoMode, items }),
+        body: JSON.stringify({
+          reference, uf, regime: encargoMode === "sem_encargos" ? null : regime,
+          encargo_mode: encargoMode, items,
+        }),
       });
       setBudgetResult(result);
     } catch (cause) {
@@ -269,7 +274,7 @@ function App() {
 
         {page === "insumos" && <section className="panel workspace-panel">
           <div className="panel-heading"><div><span className="panel-kicker">CATÁLOGO DE PREÇOS</span><h2>Pesquisa de insumos</h2></div><span className="neutral-tag">{number(priceTotal)} registros · página {pageIndex+1}</span></div>
-          <form className="filter-bar" onSubmit={searchPrices}><label className="search-field"><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Código ou descrição do insumo"/></label><label>REGIME<select value={regime} onChange={(event) => setRegime(event.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><label>ENCARGOS<select value={encargoMode} onChange={(event) => setEncargoMode(event.target.value)}><option value="com_encargos">Com encargos</option><option value="sem_encargos">Sem encargos</option></select></label><button className="primary-button" disabled={busy || !reference}><Search size={15}/>{busy ? "Consultando..." : "Pesquisar"}</button></form>
+          <form className="filter-bar" onSubmit={searchPrices}><label className="search-field"><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Código ou descrição do insumo"/></label><label>REGIME<select value={regime} disabled={encargoMode === "sem_encargos"} onChange={(event) => setRegime(event.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><label>ENCARGOS<select value={encargoMode} onChange={(event) => setEncargoMode(event.target.value)}><option value="com_encargos">Com encargos</option><option value="sem_encargos">Sem encargos</option></select></label><button className="primary-button" disabled={busy || !reference}><Search size={15}/>{busy ? "Consultando..." : "Pesquisar"}</button></form>
           <div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>UF</th><th>Tabela</th><th>Preço</th><th>Situação</th></tr></thead><tbody>{prices.map((item, index) => <tr key={item.code + item.uf + item.table_type + index}><td className="code-cell">{item.code}</td><td>{item.description}</td><td>{item.unit}</td><td>{item.uf}</td><td>{item.table_type}</td><td className="price-cell">{money(item.price)}</td><td><span className={item.status === "reported" || item.status === "reported_zero" ? "status-label good" : "status-label warn"}>{item.status}</span></td></tr>)}</tbody></table>{!prices.length && <div className="empty-state">Nenhum registro encontrado para os filtros informados.</div>}</div><div className="pagination"><button className="secondary-button" type="button" disabled={pageIndex===0||busy} onClick={()=>void searchPrices(undefined,pageIndex-1)}>Anterior</button><span>{prices.length ? `${pageIndex*PAGE_SIZE+1}–${Math.min((pageIndex+1)*PAGE_SIZE,priceTotal)} de ${number(priceTotal)}` : `0 de ${number(priceTotal)}`}</span><button className="secondary-button" type="button" disabled={(pageIndex+1)*PAGE_SIZE>=priceTotal||busy} onClick={()=>void searchPrices(undefined,pageIndex+1)}>Próxima</button></div>
         </section>}
 
@@ -283,7 +288,7 @@ function App() {
         {page === "orcamento" && <section className="panel workspace-panel">
           <div className="panel-heading"><div><span className="panel-kicker">COMPOSIÇÃO DE CUSTOS</span><h2>Orçamento por referência SINAPI</h2></div><span className="neutral-tag">Cálculo com Decimal</span></div>
           <form onSubmit={calculateBudget} className="budget-form">
-            <div className="budget-context"><label>REGIME<select value={regime} onChange={(event) => setRegime(event.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><label>ENCARGOS<select value={encargoMode} onChange={(event) => setEncargoMode(event.target.value)}><option value="com_encargos">Com encargos</option><option value="sem_encargos">Sem encargos</option></select></label></div>
+            <div className="budget-context"><label>REGIME<select value={regime} disabled={encargoMode === "sem_encargos"} onChange={(event) => setRegime(event.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><label>ENCARGOS<select value={encargoMode} onChange={(event) => setEncargoMode(event.target.value)}><option value="com_encargos">Com encargos</option><option value="sem_encargos">Sem encargos</option></select></label></div>
             <div className="budget-lines">{budgetRows.map((row, index) => <div className="budget-line" key={index}><label>CÓDIGO SINAPI<input value={row.code} onChange={(event) => updateBudgetRow(index, "code", event.target.value)} placeholder="Ex.: 104658"/></label><label>TIPO<select value={row.item_type} onChange={(event) => updateBudgetRow(index, "item_type", event.target.value)}><option value="COMPOSICAO">Composição</option><option value="INSUMO">Insumo</option></select></label><label>QUANTIDADE<input type="number" min="0" step="any" value={row.quantity} onChange={(event) => updateBudgetRow(index, "quantity", event.target.value)}/></label><button className="remove-button" type="button" aria-label="Remover item" onClick={() => setBudgetRows((rows) => rows.length > 1 ? rows.filter((_, rowIndex) => rowIndex !== index) : rows)}><Trash2 size={16}/></button></div>)}</div>
             <div className="budget-actions"><button className="secondary-button" type="button" onClick={() => setBudgetRows((rows) => [...rows, { code: "", item_type: "COMPOSICAO", quantity: "1" }])}><Plus size={15}/>Adicionar item</button><button className="primary-button" disabled={busy || !reference}><Calculator size={15}/>{busy ? "Calculando..." : "Calcular orçamento"}</button></div>
           </form>
