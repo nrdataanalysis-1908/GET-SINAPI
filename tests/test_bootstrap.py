@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
 
 from getsinapi.bootstrap import _month_shift, database_is_valid
 

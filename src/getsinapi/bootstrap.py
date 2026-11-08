@@ -8,7 +8,6 @@ import sqlite3
 import time
 import zipfile
 from datetime import date
-from io import BytesIO
 from pathlib import Path
 
 from curl_cffi import requests as browser_requests

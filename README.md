@@ -77,7 +77,7 @@ O objetivo é oferecer uma fundação confiável para análises de custos, compo
 </tr>
 </table>
 
-> **Transparência de implementação:** coleta inicial, extração segura, catálogo de planilhas, parsers iniciais das matrizes ISD/ICD/ISE e do relatório Analítico, normalização Silver e motor de cálculo recursivo já possuem implementação. Persistência histórica em banco, integração dos cálculos à API e painéis analíticos continuam em desenvolvimento. Os recursos planejados não são apresentados como funcionalidades já disponíveis.
+> **Transparência de implementação:** o repositório já contém coleta e validação de pacotes, extração segura, catálogo XLSX, parsers iniciais de preços e composições, normalização Silver, persistência histórica SQLite, API FastAPI, consultas paginadas, agregações analíticas, cálculo recursivo e montagem de orçamentos. A aplicação React/Vite e o launcher Windows estão em validação. O download ao vivo pela CAIXA ainda exige homologação com o catálogo e o pacote oficiais. PostgreSQL/Supabase, autenticação, mapas analíticos, exportações e observabilidade ampliada permanecem no roadmap.
 
 ## Arquitetura de dados
 
@@ -184,11 +184,13 @@ A stack acima representa tecnologias incorporadas ou previstas na arquitetura. A
 | Extração segura e catálogo XLSX | Implementada |
 | Auditoria dos layouts oficiais | Em andamento |
 | Parsers de preços ISD/ICD/ISE e relatório Analítico | Implementação inicial |
-| Motor de cálculo recursivo de composições e orçamento | Implementação inicial |\n| Persistência histórica SQLite e rotas de consulta | Implementação inicial |
+| Motor de cálculo recursivo de composições e orçamento | Implementação inicial |\n| Persistência histórica SQLite e carga idempotente | Implementação inicial |
+| API FastAPI de consulta, agregações e orçamento | Implementação inicial |
+| Aplicação React/Vite com pesquisa e painéis analíticos | Implementação inicial |
+| Launcher desktop Windows e empacotamento PyInstaller | Em validação |
+| Homologação do download automático no catálogo CAIXA | Pendente de validação externa |
 | Migração PostgreSQL/Supabase e histórico analítico avançado | Planejado |
-| API de consulta | Planejado |
-| Exportação analítica e dashboards | Planejado |
-| Orquestração e observabilidade | Planejado |
+| Autenticação, mapas, exportações e observabilidade ampliada | Planejado |
 
 ## Licença e uso dos dados
 
@@ -209,18 +211,21 @@ NR Data Analysis · Data Engineering
 
 ## Aplicação web (React + FastAPI)
 
-O repositório contém o primeiro esqueleto executável da aplicação web. O dashboard identifica a disponibilidade real da API e distingue serviços implementados de componentes ainda não conectados. Indicadores sem dados persistidos permanecem vazios; não são preenchidos com valores fictícios.
+A aplicação desktop combina frontend React/Vite, API FastAPI e persistência SQLite local. O painel apresenta indicadores derivados do banco, distribuição de observações por UF, série histórica, composição por tabela, pesquisa paginada de insumos e composições, cálculo recursivo e orçamento.
 
-### Iniciar a API
+O launcher Windows inicia os serviços em `127.0.0.1`, abre a interface no navegador padrão e mantém os dados em `%LOCALAPPDATA%\\NRDataAnalysis\\GET-SINAPI\\data`. A primeira execução pode iniciar a descoberta e a ingestão em segundo plano. O estado do bootstrap é registrado em `data/logs/bootstrap-state.json`.
+
+### Iniciar a API em desenvolvimento
 
 Na raiz do projeto, com o ambiente virtual ativado:
 
 ```powershell
 pip install -e ".[dev]"
+$env:GETSINAPI_DATABASE_PATH = "data/getsinapi.sqlite3"
 uvicorn getsinapi.api.main:app --reload
 ```
 
-A API ficará disponível em `http://127.0.0.1:8000` e a verificação de saúde em `http://127.0.0.1:8000/api/health`.
+A API ficará disponível em `http://127.0.0.1:8000`; a verificação de saúde está em `/api/health` e a documentação OpenAPI em `/docs`.
 
 ### Iniciar o frontend
 
@@ -232,6 +237,6 @@ npm install
 npm run dev
 ```
 
-Abra `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local na porta 8000.
+Abra `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local na porta 8000. Para consultas com dados, configure o banco SQLite por `GETSINAPI_DATABASE_PATH` ou execute a carga Silver antes de abrir o painel.
 
-> Estado atual: a tela inicial e o endpoint de saúde estão implementados. PostgreSQL, parsers de negócio, consultas de insumos/composições e indicadores reais ainda serão integrados nas próximas etapas.
+> Limites atuais: o armazenamento de produção do preview é SQLite local; autenticação, mapas geográficos, exportações e sincronização PostgreSQL/Supabase ainda não estão implementados. A atualização automática depende de homologação do acesso real aos arquivos publicados pela CAIXA.
