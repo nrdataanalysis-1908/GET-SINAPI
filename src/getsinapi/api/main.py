@@ -335,3 +335,39 @@ def analytics(reference: str | None = Query(None, pattern=r"^\\d{4}-(0[1-9]|1[0-
             "by_state": by_state, "by_reference": by_reference,
             "by_table": by_table, "status": status
         }
+
+
+@app.get("/api/insumos/count", tags=["Insumos"], summary="Total de resultados do catálogo de insumos")
+def count_input_prices(
+    reference: str = Query(..., pattern=r"^\\d{4}-(0[1-9]|1[0-2])$"),
+    uf: str = Query(..., min_length=2, max_length=2),
+    regime: str | None = Query(None, pattern="^(desonerado|nao_desonerado)$"),
+    encargo_mode: str = Query("com_encargos", pattern="^(com_encargos|sem_encargos)$"),
+    search: str | None = Query(None, min_length=2, max_length=120),
+) -> dict[str, int]:
+    clauses = ["reference = ?", "uf = ?", "encargo_mode = ?"]
+    parameters: list[Any] = [reference, uf.upper(), encargo_mode]
+    if regime is not None:
+        clauses.append("regime = ?")
+        parameters.append(regime)
+    if search:
+        clauses.append("(code LIKE ? ESCAPE '\\\\' OR description LIKE ? ESCAPE '\\\\')")
+        term = f"%{_escape_like(search.strip())}%"
+        parameters.extend((term, term))
+    rows = _rows(f"SELECT COUNT(*) AS total FROM input_prices WHERE {' AND '.join(clauses)}", tuple(parameters))
+    return {"total": int(rows[0]["total"])}
+
+
+@app.get("/api/composicoes/count", tags=["Composições"], summary="Total de resultados do catálogo de composições")
+def count_compositions(
+    reference: str = Query(..., pattern=r"^\\d{4}-(0[1-9]|1[0-2])$"),
+    search: str | None = Query(None, min_length=2, max_length=120),
+) -> dict[str, int]:
+    clauses = ["reference = ?"]
+    parameters: list[Any] = [reference]
+    if search:
+        clauses.append("(code LIKE ? OR description LIKE ?)")
+        term = f"%{search.strip()}%"
+        parameters.extend((term, term))
+    rows = _rows(f"SELECT COUNT(*) AS total FROM compositions WHERE {' AND '.join(clauses)}", tuple(parameters))
+    return {"total": int(rows[0]["total"])}
