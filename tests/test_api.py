@@ -153,3 +153,63 @@ def test_data_endpoints_return_service_unavailable_without_database(tmp_path, mo
     monkeypatch.setenv("GETSINAPI_DATABASE_PATH", str(tmp_path / "missing.sqlite3"))
     response = client.get("/api/references")
     assert response.status_code == 503
+
+
+def test_unified_catalog_lists_all_record_families_and_paginates(tmp_path, monkeypatch):
+    import sqlite3
+
+    from getsinapi.storage.sqlite import initialize_database
+
+    database = tmp_path / "catalog.sqlite3"
+    initialize_database(database)
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "INSERT INTO source_references(reference, source_file) VALUES (?, ?)",
+            ("2026-09", "SINAPI-2026-09.zip"),
+        )
+        connection.execute(
+            """INSERT INTO input_prices(
+                reference, code, description, unit, uf, regime, encargo_mode,
+                table_type, price, status, price_origin, source_file, source_sheet, source_row
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("2026-09", "1379", "Cimento Portland", "KG", "MG",
+             "nao_desonerado", "com_encargos", "ISD", "10.25", "reported",
+             "C", "SINAPI-2026-09.zip", "ISD", 11),
+        )
+        connection.execute(
+            """INSERT INTO compositions(
+                reference, code, description, unit, status, source_file, source_sheet, source_row
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("2026-09", "104658", "Composição de alvenaria", "M2", "com_custo",
+             "SINAPI-2026-09.zip", "Analítico", 11),
+        )
+        connection.execute(
+            """INSERT INTO composition_items(
+                reference, composition_code, item_code, item_type, description, unit,
+                coefficient, status, source_file, source_sheet, source_row
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("2026-09", "104658", "1379", "INSUMO", "Cimento Portland", "KG",
+             "2.5", "com_preco", "SINAPI-2026-09.zip", "Analítico", 12),
+        )
+
+    monkeypatch.setenv("GETSINAPI_DATABASE_PATH", str(database))
+    response = client.get("/api/catalog", params={"limit": 2, "offset": 0})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 3
+    assert len(payload["items"]) == 2
+    assert payload["items"][0]["reference"] == "2026-09"
+
+    next_page = client.get("/api/catalog", params={"limit": 2, "offset": 2})
+    assert next_page.status_code == 200
+    assert len(next_page.json()["items"]) == 1
+
+    filtered = client.get("/api/catalog", params={"uf": "MG", "search": "cimento"})
+    assert filtered.status_code == 200
+    assert filtered.json()["total"] == 2
+    assert {row["record_type"] for row in filtered.json()["items"]} == {"INSUMO", "COMPONENTE"}
+
+    compositions = client.get("/api/catalog", params={"record_type": "COMPOSICAO"})
+    assert compositions.status_code == 200
+    assert compositions.json()["total"] == 1
+    assert compositions.json()["items"][0]["code"] == "104658"
