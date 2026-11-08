@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 from openpyxl import Workbook
 
@@ -18,12 +19,12 @@ def make_reference_workbook(path):
 
     for sheet_name in ("ISD", "ICD", "ISE"):
         sheet = workbook.create_sheet(sheet_name)
-        for column, uf in enumerate(UF_CODES, start=6):
-            sheet.cell(10, column, uf)
         for column, value in enumerate(
             ["Classificação", "Código", "Descrição", "Unidade", "Origem"], start=1
         ):
             sheet.cell(10, column, value)
+        for column, uf in enumerate(UF_CODES, start=6):
+            sheet.cell(10, column, uf)
         for column, value in enumerate(
             ["01", "1379", "Cimento", "KG", "C"], start=1
         ):
@@ -60,6 +61,10 @@ def test_parse_reference_workbook_integrates_prices_and_compositions(tmp_path):
     assert result.source_file == path.name
     assert [table.table_type for table in result.prices] == ["ISD", "ICD", "ISE"]
     assert all(len(table.records) == 27 for table in result.prices)
+    for table in result.prices:
+        assert {record.uf for record in table.records} == set(UF_CODES)
+        mg_price = next(record.price for record in table.records if record.uf == "MG")
+        assert mg_price == Decimal("10.5")
     assert len(result.compositions.compositions) == 1
     assert len(result.compositions.items) == 1
     assert result.compositions.items[0].status.value == "com_preco"

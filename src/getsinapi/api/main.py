@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
@@ -65,7 +66,7 @@ def _connect() -> sqlite3.Connection:
 
 def _rows(sql: str, parameters: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     try:
-        with _connect() as connection:
+        with closing(_connect()) as connection, connection:
             return [dict(row) for row in connection.execute(sql, parameters).fetchall()]
     except sqlite3.OperationalError as exc:
         if "no such table" in str(exc):
@@ -107,6 +108,11 @@ def summary(reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$")) -> 
     return {"reference": reference, **rows[0]}
 
 
+def _escape_like(value: str) -> str:
+    """Escape SQLite LIKE metacharacters so search terms remain literal."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @app.get("/api/insumos", tags=["Insumos"], summary="Consulta preços de insumos")
 def list_input_prices(
     reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
@@ -123,8 +129,8 @@ def list_input_prices(
         clauses.append("regime = ?")
         parameters.append(regime)
     if search:
-        clauses.append("(code LIKE ? OR description LIKE ?)")
-        term = f"%{search.strip()}%"
+        clauses.append("(code LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')")
+        term = f"%{_escape_like(search.strip())}%"
         parameters.extend((term, term))
     parameters.extend((limit, offset))
     return _rows(
@@ -246,10 +252,10 @@ def _cost_calculator(
 )
 def composition_cost(
     code: str,
-    reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
-    uf: str = Query(..., min_length=2, max_length=2),
-    regime: Regime | None = Regime.NAO_DESONERADO,
-    encargo_mode: EncargoMode = EncargoMode.COM_ENCARGOS,
+    reference: Annotated[str, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")],
+    uf: Annotated[str, Query(min_length=2, max_length=2)],
+    regime: Annotated[Regime | None, Query()] = Regime.NAO_DESONERADO,
+    encargo_mode: Annotated[EncargoMode, Query()] = EncargoMode.COM_ENCARGOS,
 ) -> dict[str, Any]:
     calculator = _cost_calculator(
         reference=reference, uf=uf, regime=regime, encargo_mode=encargo_mode

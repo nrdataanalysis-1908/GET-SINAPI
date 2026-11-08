@@ -167,9 +167,17 @@ def load_silver_reference(
     manifest_path = base / "normalization-manifest.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Manifesto Silver não encontrado: {manifest_path}")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Manifesto Silver inválido ou ilegível.") from exc
+    if not isinstance(manifest, dict):
+        raise TypeError("Manifesto Silver deve ser um objeto JSON.")
     if manifest.get("reference") != reference:
         raise ValueError("Competência do manifesto diverge da solicitada.")
+    source_file = manifest.get("source_file")
+    if not isinstance(source_file, str) or not source_file.strip():
+        raise ValueError("Manifesto Silver deve informar source_file não vazio.")
 
     expected_files = {
         "input_prices.jsonl", "compositions.jsonl", "composition_items.jsonl"
@@ -203,6 +211,26 @@ def load_silver_reference(
         if any(record.get("reference") != reference for record in collection):
             raise ValueError("Há registros com competência divergente nos artefatos Silver.")
 
+    # SQLite UNIQUE constraints treat NULL values as distinct. Validate the
+    # natural key in Python so ISE rows (regime=None) cannot duplicate.
+    seen_price_keys: set[tuple[Any, ...]] = set()
+    for row_number, record in enumerate(prices, start=1):
+        key = (
+            record.get("reference"), record.get("code"), record.get("uf"),
+            record.get("regime"), record.get("encargo_mode"), record.get("table_type"),
+        )
+        try:
+            duplicate = key in seen_price_keys
+            seen_price_keys.add(key)
+        except TypeError as exc:
+            raise ValueError(
+                f"Invalid input-price natural key at record {row_number}."
+            ) from exc
+        if duplicate:
+            raise ValueError(
+                f"duplicate input-price natural key at record {row_number}: {key!r}"
+            )
+
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
         _ensure_schema(connection)
@@ -211,7 +239,7 @@ def load_silver_reference(
                VALUES (?, ?)
                ON CONFLICT(reference) DO UPDATE SET
                source_file=excluded.source_file, loaded_at=CURRENT_TIMESTAMP""",
-            (reference, manifest["source_file"]),
+            (reference, source_file),
         )
 
         # Substitui apenas a competência solicitada, preservando todo o histórico.
