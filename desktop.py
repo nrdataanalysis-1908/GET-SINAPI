@@ -229,10 +229,30 @@ def main() -> None:
     from getsinapi.bootstrap import run_bootstrap
 
     def update_database():
-        try:
-            run_bootstrap()
-        except Exception:
-            log.exception("Atualização automática do SINAPI interrompida.")
+        # O serviço permanece ativo até concluir uma atualização válida.
+        # Backoff progressivo evita martelar a CAIXA quando houver 403/429,
+        # indisponibilidade temporária ou publicação ainda não concluída.
+        retry_delay = 30
+        max_retry_delay = 15 * 60
+        while True:
+            try:
+                result = run_bootstrap()
+                if result.get("status") in {"updated", "up_to_date"}:
+                    retry_delay = 30
+                    # Verificação periódica: novas competências são incorporadas
+                    # sem exigir que o usuário feche e reabra o aplicativo.
+                    time.sleep(6 * 60 * 60)
+                    continue
+                if result.get("status") == "already_running":
+                    time.sleep(15)
+                    continue
+                log.warning("Bootstrap não concluiu: %s. Nova tentativa em %s segundos.",
+                            result, retry_delay)
+            except Exception:
+                log.exception("Atualização SINAPI falhou; nova tentativa automática em %s segundos.",
+                              retry_delay)
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, max_retry_delay)
 
     threading.Thread(target=update_database, daemon=True, name="sinapi-bootstrap").start()
     server = ThreadingHTTPServer((HOST, 0), DesktopHandler)
