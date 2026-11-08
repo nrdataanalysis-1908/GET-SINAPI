@@ -291,6 +291,71 @@ def calculate_budget(request: BudgetRequest) -> dict[str, Any]:
 
 
 
+@app.get("/api/catalog", tags=["Catálogo"], summary="Catálogo unificado e paginado de todos os registros SINAPI")
+def catalog(
+    search: str | None = Query(None, min_length=2, max_length=120),
+    uf: str | None = Query(None, min_length=2, max_length=2, pattern="^[A-Za-z]{2}$"),
+    record_type: str | None = Query(None, pattern="^(INSUMO|COMPOSICAO|COMPONENTE)$"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Lista preços, composições e componentes em uma grade única, sem limitar competência."""
+    cte = """
+        WITH catalog AS (
+            SELECT reference, 'INSUMO' AS record_type, code,
+                   description, unit, uf, regime, encargo_mode, table_type,
+                   price AS value, 'PREÇO' AS value_type,
+                   NULL AS composition_code, status, source_file, source_sheet, source_row
+            FROM input_prices
+            UNION ALL
+            SELECT reference, 'COMPOSICAO', code, description, unit,
+                   NULL, NULL, NULL, 'Analítico', NULL, NULL,
+                   NULL, status, source_file, source_sheet, source_row
+            FROM compositions
+            UNION ALL
+            SELECT reference, 'COMPONENTE', item_code, description, unit,
+                   NULL, NULL, NULL, 'Analítico', coefficient, 'COEFICIENTE',
+                   composition_code, status, source_file, source_sheet, source_row
+            FROM composition_items
+        )
+    """
+    clauses: list[str] = []
+    parameters: list[Any] = []
+    if uf:
+        # Composições e componentes são nacionais; permanecem visíveis junto aos preços da UF.
+        clauses.append("(uf = ? OR uf IS NULL)")
+        parameters.append(uf.upper())
+    if record_type:
+        clauses.append("record_type = ?")
+        parameters.append(record_type)
+    if search:
+        term = f"%{_escape_like(search.strip())}%"
+        clauses.append(
+            "(code LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' "
+            "OR composition_code LIKE ? ESCAPE '\\' OR source_file LIKE ? ESCAPE '\\' "
+            "OR source_sheet LIKE ? ESCAPE '\\')"
+        )
+        parameters.extend((term, term, term, term, term))
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    try:
+        with closing(_connect()) as connection, connection:
+            total = int(connection.execute(
+                cte + " SELECT COUNT(*) FROM catalog" + where, tuple(parameters)
+            ).fetchone()[0])
+            rows = [dict(row) for row in connection.execute(
+                cte + " SELECT * FROM catalog" + where
+                + " ORDER BY reference DESC, record_type, code, uf LIMIT ? OFFSET ?",
+                (*parameters, limit, offset),
+            ).fetchall()]
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            raise HTTPException(
+                status_code=503, detail="Banco SINAPI ainda não foi inicializado."
+            ) from exc
+        raise
+    return {"items": rows, "total": total, "limit": limit, "offset": offset}
+
+
 @app.get("/api/analytics", tags=["Análises"], summary="Agregados reais para o painel analítico")
 def analytics(reference: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")) -> dict[str, Any]:
     """Retorna séries e agregações calculadas diretamente da base SINAPI."""
