@@ -11,6 +11,7 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 
+from curl_cffi import requests as browser_requests
 
 from getsinapi.collectors.caixa import (
     CaixaDownloadError,
@@ -167,22 +168,28 @@ def run_bootstrap(settings: Settings | None = None) -> dict:
     _write_status(config, status="checking", stage="discovery", percent=None,
                   message="Consultando a competência oficial mais recente.", error=None)
     try:
-        reference, source_url = discover_latest_report(config)
-        _write_status(config, reference=reference, stage="integrity",
-                      message=f"Competência oficial identificada: {reference}.")
-        if _loaded_and_complete(database, reference):
-            result = {"status": "up_to_date", "reference": reference, "database": str(database)}
-            _write_status(config, **result, stage="complete", percent=100,
-                          message="Base íntegra e atualizada; nenhuma carga foi repetida.")
-            return result
+        # Mantém cookies e fingerprint do navegador entre catálogo e download.
+        # A CAIXA pode bloquear o download quando a sessão é iniciada diretamente no ZIP.
+        with browser_requests.Session(impersonate="chrome") as http_session:
+            reference, source_url = discover_latest_monthly_xlsx(
+                settings=config, session=http_session,
+            )
+            _write_status(config, reference=reference, stage="integrity",
+                          message=f"Competência oficial identificada: {reference}.")
+            if _loaded_and_complete(database, reference):
+                result = {"status": "up_to_date", "reference": reference, "database": str(database)}
+                _write_status(config, **result, stage="complete", percent=100,
+                              message="Base íntegra e atualizada; nenhuma carga foi repetida.")
+                return result
 
-        archive = _find_archive(config, reference)
-        if archive is None:
-            _write_status(config, stage="download", percent=None,
-                          message=f"Baixando pacote oficial {reference}.")
-            archive = download_monthly_xlsx(
-                reference, settings=config, source_url=source_url,
-            ).path
+            archive = _find_archive(config, reference)
+            if archive is None:
+                _write_status(config, stage="download", percent=None,
+                              message=f"Baixando pacote oficial {reference}.")
+                archive = download_monthly_xlsx(
+                    reference, settings=config, source_url=source_url,
+                    session=http_session,
+                ).path
 
         catalog_result = _catalog_valid(config, reference, archive)
         if catalog_result is None:
