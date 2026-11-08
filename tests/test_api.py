@@ -121,6 +121,13 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
     assert sem_encargos_prices.status_code == 200
     assert [row["table_type"] for row in sem_encargos_prices.json()] == ["ISE"]
 
+    sem_encargos_count = client.get(
+        "/api/insumos/count",
+        params={"reference": "2026-09", "uf": "MG", "encargo_mode": "sem_encargos"},
+    )
+    assert sem_encargos_count.status_code == 200
+    assert sem_encargos_count.json()["total"] == 1
+
     sem_encargos_cost = client.get(
         "/api/composicoes/104658/custo",
         params={"reference": "2026-09", "uf": "MG", "encargo_mode": "sem_encargos"},
