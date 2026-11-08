@@ -11,7 +11,6 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 
-import requests
 
 from getsinapi.collectors.caixa import (
     CaixaDownloadError,
