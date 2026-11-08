@@ -5,9 +5,10 @@ import hashlib
 import json
 import logging
 import sqlite3
+import threading
 import time
 import zipfile
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from curl_cffi import requests as browser_requests
@@ -23,6 +24,8 @@ from getsinapi.pipeline.normalize import normalize_reference_workbook
 from getsinapi.storage.sqlite import load_silver_reference
 
 log = logging.getLogger("getsinapi.bootstrap")
+_BOOTSTRAP_LOCK = threading.Lock()
+DISCOVERY_CACHE_TTL_SECONDS = 6 * 60 * 60
 REQUIRED_SHEETS = {"ISD", "ICD", "ISE", "Analítico"}
 
 
@@ -159,7 +162,7 @@ def _write_status(settings: Settings, **values) -> None:
     temporary.replace(path)
 
 
-def run_bootstrap(settings: Settings | None = None) -> dict:
+def _run_bootstrap(settings: Settings | None = None, *, force: bool = False) -> dict:
     config = settings or Settings.from_env()
     config.create_data_directories()
     database = _database_path(config)
@@ -170,9 +173,32 @@ def run_bootstrap(settings: Settings | None = None) -> dict:
         # Mantém cookies e fingerprint do navegador entre catálogo e download.
         # A CAIXA pode bloquear o download quando a sessão é iniciada diretamente no ZIP.
         with browser_requests.Session(impersonate="chrome") as http_session:
-            reference, source_url = discover_latest_monthly_xlsx(
-                settings=config, session=http_session,
-            )
+            cache_path = config.manifest_dir / "catalog-discovery.json"
+            cached = None
+            if cache_path.is_file() and not force:
+                try:
+                    cached = json.loads(cache_path.read_text(encoding="utf-8"))
+                    age = time.time() - float(cached["checked_at"])
+                    if age > DISCOVERY_CACHE_TTL_SECONDS:
+                        cached = None
+                except (OSError, ValueError, KeyError, TypeError):
+                    cached = None
+            if cached:
+                reference, source_url = cached["reference"], cached["url"]
+                _write_status(
+                    config, stage="discovery",
+                    message="Usando descoberta oficial recente em cache para evitar consultas repetidas.",
+                )
+            else:
+                reference, source_url = discover_latest_monthly_xlsx(
+                    settings=config, session=http_session,
+                )
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = cache_path.with_suffix(".json.tmp")
+                temporary.write_text(json.dumps({
+                    "reference": reference, "url": source_url, "checked_at": time.time(),
+                }, ensure_ascii=False, indent=2), encoding="utf-8")
+                temporary.replace(cache_path)
             _write_status(config, reference=reference, stage="integrity",
                           message=f"Competência oficial identificada: {reference}.")
             if _loaded_and_complete(database, reference):
@@ -244,3 +270,14 @@ def run_bootstrap(settings: Settings | None = None) -> dict:
                       message="Atualização interrompida; a base histórica existente foi preservada.",
                       error=f"{type(exc).__name__}: {exc}")
         raise
+
+
+
+def run_bootstrap(settings: Settings | None = None, *, force: bool = False) -> dict:
+    """Executa uma única atualização por processo; chamadas concorrentes são coalescidas."""
+    if not _BOOTSTRAP_LOCK.acquire(blocking=False):
+        return {"status": "already_running", "message": "A atualização SINAPI já está em andamento."}
+    try:
+        return _run_bootstrap(settings, force=force)
+    finally:
+        _BOOTSTRAP_LOCK.release()
