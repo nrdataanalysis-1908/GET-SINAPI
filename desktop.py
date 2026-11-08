@@ -192,7 +192,7 @@ class DesktopHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/bootstrap-retry":
             from getsinapi.bootstrap import run_bootstrap
-            threading.Thread(target=run_bootstrap, daemon=True, name="sinapi-bootstrap-retry").start()
+            threading.Thread(target=lambda: run_bootstrap(force=True), daemon=True, name="sinapi-bootstrap-retry").start()
             return self._send(202, "application/json", b'{"status":"retry_started"}')
         return self.proxy()
 
