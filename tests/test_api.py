@@ -39,6 +39,16 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
              "C", "SINAPI.xlsx", "ISD", 11),
         )
         connection.execute(
+            """INSERT INTO input_prices(
+                reference, code, description, unit, uf, regime, encargo_mode,
+                table_type, price, status, price_origin, source_file,
+                source_sheet, source_row
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("2026-09", "1379", "Cimento Portland", "KG", "MG",
+             None, "sem_encargos", "ISE", "10.25", "reported",
+             "C", "SINAPI.xlsx", "ISE", 11),
+        )
+        connection.execute(
             """INSERT INTO compositions(
                 reference, code, description, unit, status,
                 source_file, source_sheet, source_row
@@ -103,6 +113,33 @@ def test_data_endpoints_read_persisted_sinapi_records(tmp_path, monkeypatch):
     )
     assert budget.status_code == 200
     assert budget.json()["total"] == 51.25
+
+    sem_encargos_prices = client.get(
+        "/api/insumos",
+        params={"reference": "2026-09", "uf": "MG", "encargo_mode": "sem_encargos"},
+    )
+    assert sem_encargos_prices.status_code == 200
+    assert [row["table_type"] for row in sem_encargos_prices.json()] == ["ISE"]
+
+    sem_encargos_cost = client.get(
+        "/api/composicoes/104658/custo",
+        params={"reference": "2026-09", "uf": "MG", "encargo_mode": "sem_encargos"},
+    )
+    assert sem_encargos_cost.status_code == 200
+    assert sem_encargos_cost.json()["total"] == 25.625
+
+    sem_encargos_budget = client.post(
+        "/api/budget",
+        json={
+            "reference": "2026-09",
+            "uf": "MG",
+            "regime": None,
+            "encargo_mode": "sem_encargos",
+            "items": [{"code": "104658", "item_type": "COMPOSICAO", "quantity": "2"}],
+        },
+    )
+    assert sem_encargos_budget.status_code == 200
+    assert sem_encargos_budget.json()["total"] == 51.25
 
 
 def test_data_endpoints_return_service_unavailable_without_database(tmp_path, monkeypatch):
