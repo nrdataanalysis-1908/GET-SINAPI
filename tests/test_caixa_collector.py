@@ -178,6 +178,7 @@ def test_download_retries_http_429_then_accepts_valid_zip(tmp_path, monkeypatch)
     for status in (429, 200):
         response = requests.Response()
         response.status_code = status
+        response.raw = BytesIO()
         response.headers["Retry-After"] = "0"
         if status == 200:
             response._content = make_zip()
@@ -199,6 +200,7 @@ def test_download_retries_http_429_then_accepts_valid_zip(tmp_path, monkeypatch)
 def test_download_does_not_accept_forbidden_or_missing_file(tmp_path, status):
     response = requests.Response()
     response.status_code = status
+    response.raw = BytesIO()
 
     class FakeSession:
         def get(self, *args, **kwargs):
