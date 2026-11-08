@@ -123,7 +123,7 @@ def discover_latest_monthly_xlsx(
                 "foi identificado. A atualização foi interrompida sem alterar a base."
             )
         return max(candidates.items(), key=lambda item: item[0])
-    except (requests.RequestException, browser_requests.exceptions.RequestsError) as exc:
+    except (requests.RequestException, browser_requests.RequestsError) as exc:
         raise CaixaDownloadError(
             f"Falha de rede ao consultar o catálogo oficial da CAIXA: {exc}"
         ) from exc
@@ -158,7 +158,7 @@ def download_monthly_xlsx(
             response = _http_get(
                 url, timeout=settings.http_timeout, headers=headers, session=session,
             )
-        except (requests.RequestException, browser_requests.exceptions.RequestsError) as exc:
+        except (requests.RequestException, browser_requests.RequestsError) as exc:
             if attempt > settings.http_max_retries:
                 raise CaixaDownloadError(f"Falha de rede ao baixar {url}: {exc}") from exc
             time.sleep(_retry_delay(None, attempt, settings.http_backoff_seconds))
