@@ -23,6 +23,18 @@ type CostResult = {
 };
 type BudgetRow = { code: string; item_type: "INSUMO" | "COMPOSICAO"; quantity: string };
 type BudgetResult = { total: number | null; status: string; issues: string[]; lines: Array<{ code: string; item_type: string; quantity: number; unit_cost: number | null; total: number | null; status: string }> };
+type Analytics = { reference: string | null; references: Reference[]; totals: Summary; by_state: Array<{uf:string;observations:number;priced:number}>; by_reference: Array<{reference:string;input_prices:number;compositions:number;states:number}>; by_table: Array<{table_type:string;observations:number;priced:number}>; status: Array<{status:string;quantity:number}> };
+const PAGE_SIZE = 50;
+function Bars({items, labelKey, valueKey}:{items:Array<Record<string,any>>;labelKey:string;valueKey:string}) {
+  const max = Math.max(1,...items.map(x=>Number(x[valueKey]||0)));
+  return <div className="chart-bars">{items.map((item,i)=><div className="chart-bar-row" key={String(item[labelKey])+i}><span>{String(item[labelKey])}</span><div className="chart-track"><i style={{width:(Number(item[valueKey]||0)/max*100)+"%"}}/></div><b>{number(Number(item[valueKey]||0))}</b></div>)}</div>;
+}
+function Trend({items}:{items:Array<{reference:string;input_prices:number}>}) {
+ const max=Math.max(1,...items.map(x=>x.input_prices));
+ const pts=items.map((x,i)=>({x:24+(items.length<2?0:i*252/(items.length-1)),y:112-x.input_prices/max*88}));
+ const path=pts.map((p,i)=>(i?"L":"M")+p.x+","+p.y).join(" ");
+ return <div className="trend-wrap"><svg viewBox="0 0 300 140" role="img" aria-label="Observações de preços por competência"><path d="M24 112H276" stroke="#294158" strokeWidth="1"/><path d={path} fill="none" stroke="#60e6ff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>{pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r="4" fill="#60e6ff"/> )}</svg><div className="trend-labels">{items.map(x=><span key={x.reference}>{x.reference}</span>)}</div></div>;
+}
 
 const navigation: Array<{ id: Page; label: string; icon: typeof Gauge }> = [
   { id: "overview", label: "Visão geral", icon: Gauge },
@@ -44,6 +56,10 @@ function App() {
   const [regime, setRegime] = useState("nao_desonerado");
   const [encargoMode, setEncargoMode] = useState("com_encargos");
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [priceTotal, setPriceTotal] = useState(0);
+  const [compositionTotal, setCompositionTotal] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
   const [search, setSearch] = useState("");
   const [prices, setPrices] = useState<InputPrice[]>([]);
   const [compositions, setCompositions] = useState<Composition[]>([]);
@@ -64,6 +80,12 @@ function App() {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail ?? "Não foi possível consultar a API.");
     return payload as T;
+  }
+
+  async function loadAnalytics(ref = reference) {
+    if (!ref) return;
+    try { setAnalytics(await request<Analytics>(`/api/analytics?reference=${encodeURIComponent(ref)}`)); }
+    catch { setAnalytics(null); }
   }
 
   async function loadSummary(ref = reference) {
@@ -90,7 +112,7 @@ function App() {
           const refs = await request<Reference[]>("/api/references");
           if (!active) return;
           setReferences(refs);
-          if (refs.length) setReference(refs[0].reference);
+          if (refs.length) setReference(refs[refs.length - 1].reference);
         } catch (cause) {
           if (!active) return;
           setError(cause instanceof Error ? cause.message : "Banco histórico ainda não inicializado.");
@@ -108,27 +130,31 @@ function App() {
 
   useEffect(() => { if (reference) void loadSummary(reference); }, [reference]);
 
-  async function searchPrices(event?: FormEvent) {
+  async function searchPrices(event?: FormEvent, nextPage = 0) {
     event?.preventDefault();
     if (!reference) return;
     setBusy(true); setError("");
     try {
       const params = new URLSearchParams({
-        reference, uf, regime, encargo_mode: encargoMode, limit: "200",
+        reference, uf, regime, encargo_mode: encargoMode, limit: String(PAGE_SIZE), offset: String(nextPage * PAGE_SIZE),
       });
       if (search.trim()) params.set("search", search.trim());
-      setPrices(await request<InputPrice[]>(`/api/insumos?${params.toString()}`));
+      const [rows,count] = await Promise.all([
+        request<InputPrice[]>(`/api/insumos?${params.toString()}`),
+        request<{total:number}>(`/api/insumos/count?${params.toString()}`)
+      ]);
+      setPrices(rows); setPriceTotal(count.total); setPageIndex(nextPage);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao pesquisar insumos.");
     } finally { setBusy(false); }
   }
 
-  async function searchCompositions(event?: FormEvent) {
+  async function searchCompositions(event?: FormEvent, nextPage = 0) {
     event?.preventDefault();
     if (!reference) return;
     setBusy(true); setError("");
     try {
-      const params = new URLSearchParams({ reference, limit: "200" });
+      const params = new URLSearchParams({ reference, limit: String(PAGE_SIZE), offset: String(nextPage * PAGE_SIZE) });
       if (search.trim()) params.set("search", search.trim());
       setCompositions(await request<Composition[]>(`/api/composicoes?${params.toString()}`));
       setSelectedCost(null);
@@ -214,29 +240,38 @@ function App() {
             <article className="metric-card"><div className="metric-top"><span>Estados cobertos</span><MapPin size={18} /></div><div className="metric-value">{summary ? number(summary.states) : "—"}</div><div className="metric-foot">UFs com observações</div></article>
             <article className="metric-card"><div className="metric-top"><span>Preços indisponíveis</span><ShieldCheck size={18} /></div><div className="metric-value">{summary ? number(summary.unavailable_prices) : "—"}</div><div className="metric-foot">Ausentes ou não pesquisados</div></article>
           </section>
-          <div className="content-grid">
-            <section className="panel"><div className="panel-heading"><div><span className="panel-kicker">BASE DE DADOS</span><h2>Competências disponíveis</h2></div><span className="neutral-tag">{references.length} carregadas</span></div>
-              {references.length ? <div className="data-table-wrap"><table><thead><tr><th>Competência</th><th>Arquivo de origem</th><th>Carregada em</th></tr></thead><tbody>{references.map((item) => <tr key={item.reference}><td className="code-cell">{item.reference}</td><td>{item.source_file}</td><td>{new Date(item.loaded_at.replace(" ", "T") + "Z").toLocaleString("pt-BR")}</td></tr>)}</tbody></table></div> : <div className="empty-state">Aguardando primeira carga histórica.</div>}
+          <div className="analytics-grid">
+            <section className="panel"><div className="panel-heading"><div><span className="panel-kicker">DISTRIBUIÇÃO GEOGRÁFICA</span><h2>Observações por UF</h2></div><span className="neutral-tag">Base selecionada</span></div>
+              {analytics?.by_state.length ? <Bars items={analytics.by_state} labelKey="uf" valueKey="observations"/> : <div className="empty-state">Sem observações para a competência selecionada.</div>}
             </section>
-            <section className="panel connection-panel"><div className="panel-heading"><div><span className="panel-kicker">CONECTIVIDADE</span><h2>Serviços</h2></div><span className="live-indicator"><span /> LIVE</span></div>
-              <div className="service-row"><div className="service-icon"><Activity size={17} /></div><div className="service-info"><strong>API GET-SINAPI</strong><small>FastAPI · /api/health</small></div><span className={apiState === "online" ? "service-state online" : apiState === "offline" ? "service-state offline" : "service-state checking"}>{apiLabel}</span></div>
-              <div className="service-row"><div className="service-icon"><Database size={17} /></div><div className="service-info"><strong>Banco histórico</strong><small>SQLite · persistência local</small></div><span className="service-state online">Configurável</span></div>
-              <div className="service-row"><div className="service-icon"><ChartColumn size={17} /></div><div className="service-info"><strong>Camada analítica</strong><small>Consultas e cálculo recursivo</small></div><span className="service-state online">Inicial</span></div>
+            <section className="panel"><div className="panel-heading"><div><span className="panel-kicker">SÉRIE HISTÓRICA</span><h2>Volume de registros por competência</h2></div><span className="neutral-tag">Histórico carregado</span></div>
+              {analytics?.by_reference.length ? <Trend items={analytics.by_reference}/> : <div className="empty-state">A série será exibida após a primeira carga.</div>}
+            </section>
+            <section className="panel"><div className="panel-heading"><div><span className="panel-kicker">COMPOSIÇÃO DA BASE</span><h2>Observações por tabela</h2></div></div>
+              {analytics?.by_table.length ? <Bars items={analytics.by_table} labelKey="table_type" valueKey="observations"/> : <div className="empty-state">Sem dados para classificar.</div>}
+            </section>
+            <section className="panel connection-panel"><div className="panel-heading"><div><span className="panel-kicker">CONECTIVIDADE</span><h2>Serviços e persistência</h2></div><span className="live-indicator"><span /> LIVE</span></div>
+              <div className="service-row"><div className="service-icon"><Activity size={17}/></div><div className="service-info"><strong>API GET-SINAPI</strong><small>FastAPI · /api/health</small></div><span className={apiState === "online" ? "service-state online" : "service-state offline"}>{apiLabel}</span></div>
+              <div className="service-row"><div className="service-icon"><Database size={17}/></div><div className="service-info"><strong>Banco histórico</strong><small>SQLite · leitura da base persistida</small></div><span className="service-state online">{references.length} competências</span></div>
+              <div className="service-row"><div className="service-icon"><ChartColumn size={17}/></div><div className="service-info"><strong>Camada analítica</strong><small>Agregações SQL reais</small></div><span className="service-state online">Ativa</span></div>
               <div className="service-foot">Última verificação: {lastCheck}</div>
             </section>
           </div>
+          <section className="panel history-panel"><div className="panel-heading"><div><span className="panel-kicker">RASTREABILIDADE</span><h2>Competências disponíveis</h2></div><span className="neutral-tag">{references.length} carregadas</span></div>
+            {references.length ? <div className="data-table-wrap"><table><thead><tr><th>Competência</th><th>Arquivo de origem</th><th>Carregada em</th><th>Registros de preços</th><th>Composições</th></tr></thead><tbody>{analytics?.by_reference.slice().reverse().map((item) => <tr key={item.reference}><td className="code-cell">{item.reference}</td><td>{references.find(x=>x.reference===item.reference)?.source_file ?? "—"}</td><td>{references.find(x=>x.reference===item.reference)?.loaded_at ?? "—"}</td><td>{number(item.input_prices)}</td><td>{number(item.compositions)}</td></tr>)}</tbody></table></div> : <div className="empty-state">Aguardando primeira carga histórica.</div>}
+          </section>
         </>}
 
         {page === "insumos" && <section className="panel workspace-panel">
-          <div className="panel-heading"><div><span className="panel-kicker">CATÁLOGO DE PREÇOS</span><h2>Pesquisa de insumos</h2></div><span className="neutral-tag">{prices.length} resultados</span></div>
+          <div className="panel-heading"><div><span className="panel-kicker">CATÁLOGO DE PREÇOS</span><h2>Pesquisa de insumos</h2></div><span className="neutral-tag">{number(priceTotal)} registros · página {pageIndex+1}</span></div>
           <form className="filter-bar" onSubmit={searchPrices}><label className="search-field"><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Código ou descrição do insumo"/></label><label>REGIME<select value={regime} onChange={(event) => setRegime(event.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><label>ENCARGOS<select value={encargoMode} onChange={(event) => setEncargoMode(event.target.value)}><option value="com_encargos">Com encargos</option><option value="sem_encargos">Sem encargos</option></select></label><button className="primary-button" disabled={busy || !reference}><Search size={15}/>{busy ? "Consultando..." : "Pesquisar"}</button></form>
-          <div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>UF</th><th>Tabela</th><th>Preço</th><th>Situação</th></tr></thead><tbody>{prices.map((item, index) => <tr key={item.code + item.uf + item.table_type + index}><td className="code-cell">{item.code}</td><td>{item.description}</td><td>{item.unit}</td><td>{item.uf}</td><td>{item.table_type}</td><td className="price-cell">{money(item.price)}</td><td><span className={item.status === "reported" || item.status === "reported_zero" ? "status-label good" : "status-label warn"}>{item.status}</span></td></tr>)}</tbody></table>{!prices.length && <div className="empty-state">Informe um código ou descrição e execute a pesquisa.</div>}</div>
+          <div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>UF</th><th>Tabela</th><th>Preço</th><th>Situação</th></tr></thead><tbody>{prices.map((item, index) => <tr key={item.code + item.uf + item.table_type + index}><td className="code-cell">{item.code}</td><td>{item.description}</td><td>{item.unit}</td><td>{item.uf}</td><td>{item.table_type}</td><td className="price-cell">{money(item.price)}</td><td><span className={item.status === "reported" || item.status === "reported_zero" ? "status-label good" : "status-label warn"}>{item.status}</span></td></tr>)}</tbody></table>{!prices.length && <div className="empty-state">Nenhum registro encontrado para os filtros informados.</div>}</div><div className="pagination"><button className="secondary-button" type="button" disabled={pageIndex===0||busy} onClick={()=>void searchPrices(undefined,pageIndex-1)}>Anterior</button><span>{prices.length ? `${pageIndex*PAGE_SIZE+1}–${Math.min((pageIndex+1)*PAGE_SIZE,priceTotal)} de ${number(priceTotal)}` : `0 de ${number(priceTotal)}`}</span><button className="secondary-button" type="button" disabled={(pageIndex+1)*PAGE_SIZE>=priceTotal||busy} onClick={()=>void searchPrices(undefined,pageIndex+1)}>Próxima</button></div>
         </section>}
 
         {page === "composicoes" && <section className="panel workspace-panel">
-          <div className="panel-heading"><div><span className="panel-kicker">BASE ANALÍTICA</span><h2>Composições SINAPI</h2></div><span className="neutral-tag">{compositions.length} resultados</span></div>
+          <div className="panel-heading"><div><span className="panel-kicker">BASE ANALÍTICA</span><h2>Composições SINAPI</h2></div><span className="neutral-tag">{number(compositionTotal)} registros · página {pageIndex+1}</span></div>
           <form className="filter-bar" onSubmit={searchCompositions}><label className="search-field"><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Código ou descrição da composição"/></label><button className="primary-button" disabled={busy || !reference}><Search size={15}/>{busy ? "Consultando..." : "Pesquisar"}</button></form>
-          <div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{compositions.map((item) => <tr key={item.code}><td className="code-cell">{item.code}</td><td>{item.description}</td><td>{item.unit}</td><td>{item.status ?? "—"}</td><td><button className="text-action" type="button" onClick={() => calculateComposition(item.code)} disabled={busy}>Calcular custo <ChevronRight size={14}/></button></td></tr>)}</tbody></table>{!compositions.length && <div className="empty-state">Pesquise uma composição para consultar seus componentes e custo calculado.</div>}</div>
+          <div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{compositions.map((item) => <tr key={item.code}><td className="code-cell">{item.code}</td><td>{item.description}</td><td>{item.unit}</td><td>{item.status ?? "—"}</td><td><button className="text-action" type="button" onClick={() => calculateComposition(item.code)} disabled={busy}>Calcular custo <ChevronRight size={14}/></button></td></tr>)}</tbody></table>{!compositions.length && <div className="empty-state">Nenhuma composição encontrada para a pesquisa.</div>}</div><div className="pagination"><button className="secondary-button" type="button" disabled={pageIndex===0||busy} onClick={()=>void searchCompositions(undefined,pageIndex-1)}>Anterior</button><span>{compositions.length ? `${pageIndex*PAGE_SIZE+1}–${Math.min((pageIndex+1)*PAGE_SIZE,compositionTotal)} de ${number(compositionTotal)}` : `0 de ${number(compositionTotal)}`}</span><button className="secondary-button" type="button" disabled={(pageIndex+1)*PAGE_SIZE>=compositionTotal||busy} onClick={()=>void searchCompositions(undefined,pageIndex+1)}>Próxima</button></div>
           {selectedCost && <div className="cost-result"><div className="cost-result-head"><div><span className="panel-kicker">CUSTO UNITÁRIO · {selectedCost.composition_code}</span><h3>{money(selectedCost.total)}</h3></div><span className={selectedCost.status === "complete" ? "status-label good" : "status-label warn"}>{selectedCost.status}</span></div><div className="data-table-wrap"><table><thead><tr><th>Componente</th><th>Coeficiente</th><th>Preço unitário</th><th>Custo parcial</th></tr></thead><tbody>{selectedCost.lines.map((line, index) => <tr key={line.item_code + index}><td>{line.item_code} · {line.description}</td><td>{line.coefficient}</td><td>{money(line.unit_price)}</td><td>{money(line.total)}</td></tr>)}</tbody></table></div>{selectedCost.issues.map((issue) => <p className="issue-line" key={issue}>{issue}</p>)}</div>}
         </section>}
 
