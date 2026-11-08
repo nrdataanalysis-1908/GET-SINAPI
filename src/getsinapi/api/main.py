@@ -43,7 +43,7 @@ class BudgetLineRequest(BaseModel):
 class BudgetRequest(BaseModel):
     reference: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     uf: str = Field(min_length=2, max_length=2)
-    regime: Regime | None = Regime.NAO_DESONERADO
+    regime: Regime | None = None
     encargo_mode: EncargoMode = EncargoMode.COM_ENCARGOS
     items: list[BudgetLineRequest] = Field(min_length=1, max_length=500)
 
@@ -254,7 +254,7 @@ def composition_cost(
     code: str,
     reference: Annotated[str, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")],
     uf: Annotated[str, Query(min_length=2, max_length=2)],
-    regime: Annotated[Regime | None, Query()] = Regime.NAO_DESONERADO,
+    regime: Annotated[Regime | None, Query()] = None,
     encargo_mode: Annotated[EncargoMode, Query()] = EncargoMode.COM_ENCARGOS,
 ) -> dict[str, Any]:
     calculator = _cost_calculator(
