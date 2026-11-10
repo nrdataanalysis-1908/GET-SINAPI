@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "get-sinapi"
-version = "0.1.0"
+version = "2.0.0"
 description = "Pipeline rastreável de dados públicos do SINAPI/CAIXA"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{ name = "NR Data Analysis" }]
+authors = [{ name = "NR TECH" }]
 dependencies = [
   "requests>=2.31",
   "curl-cffi>=0.7",
