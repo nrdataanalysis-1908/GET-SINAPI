@@ -50,4 +50,13 @@ def test_load_rejects_duplicate_ise_natural_keys_with_null_regime(tmp_path):
     with pytest.raises(ValueError, match="duplicate input-price natural key"):
         load_silver_reference(processed, reference="2026-09")
 
-    assert not (tmp_path / "data" / "getsinapi.sqlite3").exists()
+    # O arquivo SQLite pode existir porque o schema é inicializado antes da carga.
+    # O contrato relevante é o rollback integral: nenhuma linha pode permanecer.
+    import sqlite3
+
+    database = tmp_path / "data" / "getsinapi.sqlite3"
+    assert database.is_file()
+    with sqlite3.connect(database) as connection:
+        for table in ("source_references", "input_prices", "compositions", "composition_items"):
+            count = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            assert count == 0, f"A transação deixou registros em {table}."
