@@ -36,6 +36,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
           python -m pip install pyinstaller
+      - name: Verify package version
+        run: |
+          python -c "from importlib.metadata import version; from getsinapi import __version__; installed = version('get-sinapi'); assert installed == __version__, f'Package metadata {installed} differs from runtime {__version__}'; print(f'GET-SINAPI package version: {installed}')"
       - name: Lint Python
         run: python -m ruff check .
       - name: Run backend tests
