@@ -60,8 +60,7 @@ def _from_html(html: str) -> dict[str, str]:
 def _from_sharepoint(settings: Settings, session=None) -> dict[str, str]:
     endpoint = (
         "https://www.caixa.gov.br/_api/web/lists/getbytitle('Downloads')/Items"
-        "?$select=Title,FileLeafRef,EncodedAbsUrl&$filter=FSObjType%20eq%200"
-        "%20and%20substringof('SINAPI',FileLeafRef)&$top=5000"
+        "?$select=Title,FileLeafRef,EncodedAbsUrl,FSObjType&$top=5000"
     )
     headers = {
         "Accept": "application/json;odata=verbose",
@@ -69,6 +68,7 @@ def _from_sharepoint(settings: Settings, session=None) -> dict[str, str]:
         "Referer": "https://www.caixa.gov.br/",
     }
     found: dict[str, str] = {}
+    items_seen = 0
     next_url: str | None = endpoint
     pages = 0
     while next_url and pages < 20:
@@ -84,9 +84,10 @@ def _from_sharepoint(settings: Settings, session=None) -> dict[str, str]:
             payload = response.json()
             data = payload.get("d", payload)
             items = data.get("results", data.get("value", []))
+            items_seen += len(items)
             for item in items:
                 filename = str(item.get("FileLeafRef") or item.get("Title") or "")
-                if not filename.lower().endswith(".zip"):
+                if "SINAPI" not in filename.upper() or not filename.lower().endswith(".zip"):
                     continue
                 reference = _reference_from_filename(filename)
                 target = str(item.get("EncodedAbsUrl") or "")
@@ -106,6 +107,10 @@ def _from_sharepoint(settings: Settings, session=None) -> dict[str, str]:
             "Catálogo histórico da CAIXA excedeu o limite de paginação; "
             "a descoberta foi interrompida para não declarar cobertura parcial como completa."
         )
+    log.info(
+        "Índice SharePoint consultado: %s itens examinados, %s competências XLSX identificadas.",
+        items_seen, len(found),
+    )
     return found
 
 
