@@ -223,7 +223,7 @@ def test_duplicate_price_natural_key_is_rejected_by_sqlite_without_partial_commi
     price_artifact["sha256"] = hashlib.sha256(payload).hexdigest()
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(ValueError, match="duplicate input-price natural key"):
         load_silver_reference(processed, reference="2026-09")
 
     database_path = tmp_path / "data" / "getsinapi.sqlite3"
