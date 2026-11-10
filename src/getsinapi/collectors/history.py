@@ -114,24 +114,25 @@ def discover_historical_xlsx_catalog(
     settings: Settings | None = None,
     session=None,
 ) -> dict[str, str]:
-    """Retorna todas as competências XLSX unificadas encontradas no catálogo CAIXA.
+    """Retorna o inventário consolidado das competências XLSX publicadas pela CAIXA.
 
-    A função não infere meses ausentes nem transforma um calendário em evidência
-    de publicação. Uma competência só entra no inventário quando existe link
-    oficial identificado no catálogo HTML ou no índice SharePoint.
+    O catálogo HTML e o índice SharePoint são consultados como superfícies
+    complementares. Se o índice secundário falhar, a descoberta é considerada
+    inconclusiva: não se inicia uma ingestão que possa aparentar cobertura integral.
     """
     config = settings or Settings.from_env()
-    response = _http_get(
-        DOWNLOADS_PAGE_URL,
-        timeout=config.http_timeout,
-        headers={
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-            "Referer": "https://www.caixa.gov.br/",
-        },
-        session=session,
-    )
+    response = None
     try:
+        response = _http_get(
+            DOWNLOADS_PAGE_URL,
+            timeout=config.http_timeout,
+            headers={
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+                "Referer": "https://www.caixa.gov.br/",
+            },
+            session=session,
+        )
         if response.status_code == 200:
             catalog = _from_html(response.text)
         else:
@@ -141,23 +142,26 @@ def discover_historical_xlsx_catalog(
                 response.status_code,
             )
             catalog = {}
+    except Exception as exc:
+        raise CaixaDownloadError(
+            f"Falha ao consultar o catálogo HTML oficial da CAIXA: {exc}"
+        ) from exc
     finally:
-        response.close()
+        if response is not None:
+            response.close()
 
-    # Consolida as duas superfícies oficiais para reduzir o risco de um índice
-    # HTML parcialmente carregado ocultar competências históricas.
     try:
-        catalog.update(_from_sharepoint(config, session=session))
-    except CaixaDownloadError:
-        if not catalog:
-            raise
-        log.warning(
-            "Índice SharePoint indisponível; mantendo os links encontrados no catálogo HTML. "
-            "A auditoria de cobertura deverá apontar eventuais lacunas."
-        )
+        sharepoint_catalog = _from_sharepoint(config, session=session)
+    except Exception as exc:
+        raise CaixaDownloadError(
+            "Não foi possível validar o inventário histórico no índice SharePoint "
+            f"oficial da CAIXA; a ingestão foi bloqueada para evitar cobertura incompleta: {exc}"
+        ) from exc
+
+    catalog.update(sharepoint_catalog)
     if not catalog:
         raise CaixaDownloadError(
-            "Nenhuma competência XLSX unificada foi encontrada no catálogo oficial. "
+            "Nenhuma competência XLSX unificada foi encontrada nas fontes oficiais. "
             "A ingestão histórica não será marcada como concluída."
         )
     return dict(sorted(catalog.items()))
