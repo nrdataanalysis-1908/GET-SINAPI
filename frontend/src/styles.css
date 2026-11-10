@@ -97,3 +97,7 @@
 .user-tag{color:#8ba3b9;font:9px 'DM Mono',monospace}
 .logout-button{cursor:pointer}
 @media(max-width:700px){.auth-card{padding:25px}}
+
+.user-create-form{max-width:560px;grid-template-columns:1fr 1fr;align-items:end}
+.user-create-form .primary-button{min-height:42px}
+@media(max-width:620px){.user-create-form{grid-template-columns:1fr}}
