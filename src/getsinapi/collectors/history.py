@@ -99,7 +99,7 @@ def _from_monthly_urls(settings: Settings, session=None) -> dict[str, str]:
             if content_length is not None and int(content_length) <= 0:
                 continue
             found[reference] = url
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - falha isolada por competência não deve abortar o inventário
             log.warning("Não foi possível sondar a publicação %s por URL direta: %s", reference, exc)
         finally:
             if response is not None:
@@ -201,7 +201,7 @@ def discover_historical_xlsx_catalog(
                 response.status_code,
             )
             catalog = {}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - fontes alternativas devem ser tentadas mesmo após falha de rede
         log.warning("Falha ao consultar o catálogo HTML oficial da CAIXA: %s", exc)
         catalog = {}
     finally:
@@ -213,7 +213,7 @@ def discover_historical_xlsx_catalog(
     # do HTML quando a API interna da CAIXA estiver indisponível ou incompatível.
     try:
         sharepoint_catalog = _from_sharepoint(config, session=session)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - falha do índice não deve impedir a sondagem direta
         log.warning(
             "Índice SharePoint indisponível (%s); prosseguindo com sondagem "
             "das URLs mensais oficiais. Catálogo HTML: %s competências.",
