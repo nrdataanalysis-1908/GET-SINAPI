@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
-import sqlite3
 import csv
+import hashlib
 import io
 import json
-import hashlib
+import os
 import secrets
+import sqlite3
 import threading
 import time
 from contextlib import closing
@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from getsinapi import __version__
@@ -97,12 +97,16 @@ def _session_user(request: Request) -> str | None:
 @app.middleware("http")
 async def require_local_auth(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/api/") and path not in {
-        "/api/health", "/api/auth/status", "/api/auth/setup",
-        "/api/auth/login", "/api/auth/logout"
-    }:
-        if _read_auth().get("users") and not _session_user(request):
-            return JSONResponse(status_code=401, content={"detail": "Sessão expirada ou não autenticada."})
+    if (
+        path.startswith("/api/")
+        and path not in {
+            "/api/health", "/api/auth/status", "/api/auth/setup",
+            "/api/auth/login", "/api/auth/logout"
+        }
+        and _read_auth().get("users")
+        and not _session_user(request)
+    ):
+        return JSONResponse(status_code=401, content={"detail": "Sessão expirada ou não autenticada."})
     return await call_next(request)
 
 
@@ -678,20 +682,20 @@ def export_catalog(
         if rows:
             sheet.append(list(rows[0].keys()))
             for item in rows:
-                sheet.append([item.get(key) for key in rows[0].keys()])
+                sheet.append([item.get(key) for key in rows[0]])
         buffer = io.BytesIO()
         workbook.save(buffer)
         return StreamingResponse(iter([buffer.getvalue()]),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": "attachment; filename=get-sinapi-catalogo.xlsx"})
     if format == "pdf":
-        from xml.sax.saxutils import escape
         from reportlab.lib import colors
         from reportlab.lib.enums import TA_LEFT
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
         from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        from xml.sax.saxutils import escape
         buffer = io.BytesIO()
         document = SimpleDocTemplate(buffer, pagesize=landscape(A4),
             rightMargin=10*mm, leftMargin=10*mm, topMargin=10*mm, bottomMargin=10*mm)
