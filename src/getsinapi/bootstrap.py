@@ -136,11 +136,11 @@ def _normalization_valid(settings: Settings, reference: str) -> bool:
         return False
 
 
-def _write_status(settings: Settings, **values) -> None:
+def _write_status(settings: Settings, *, reset: bool = False, **values) -> None:
     path = settings.data_dir / "logs" / "bootstrap-state.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     current = {}
-    if path.is_file():
+    if not reset and path.is_file():
         try:
             current = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -265,7 +265,7 @@ def _run_bootstrap(settings: Settings | None = None, *, force: bool = False) -> 
     database = _database_path(config)
     had_database = database_is_valid(database)
     _write_status(
-        config, status="checking", stage="discovery", percent=0,
+        config, reset=True, status="checking", stage="discovery", percent=0,
         message="Descobrindo todas as competências XLSX publicadas no catálogo oficial da CAIXA.",
         error=None,
     )
