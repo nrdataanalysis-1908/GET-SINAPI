@@ -230,7 +230,23 @@ def _process_reference(
             config, stage="database_load", current_reference=reference,
             message=f"Carregando {reference} no SQLite sem remover o histórico existente.",
         )
-        loaded = load_silver_reference(config.processed_dir, reference=reference)
+        def report_load_progress(phase: str, records: int) -> None:
+            _write_status(
+                config,
+                status="running",
+                stage="database_load",
+                current_reference=reference,
+                message=(
+                    f"Gravando {reference} no SQLite: "
+                    f"{phase} — {records:,} registros processados."
+                ),
+            )
+
+        loaded = load_silver_reference(
+            config.processed_dir,
+            reference=reference,
+            progress_callback=report_load_progress,
+        )
     else:
         loaded = {"reference": reference, "database_path": str(database)}
 
