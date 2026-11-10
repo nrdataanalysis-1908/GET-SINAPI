@@ -132,12 +132,15 @@ def discover_historical_xlsx_catalog(
         session=session,
     )
     try:
-        if response.status_code != 200:
-            raise CaixaDownloadError(
-                "Catálogo HTML da CAIXA indisponível "
-                f"(HTTP {response.status_code}) durante descoberta histórica."
+        if response.status_code == 200:
+            catalog = _from_html(response.text)
+        else:
+            log.warning(
+                "Catálogo HTML da CAIXA indisponível (HTTP %s); "
+                "tentando o índice SharePoint oficial.",
+                response.status_code,
             )
-        catalog = _from_html(response.text)
+            catalog = {}
     finally:
         response.close()
 
