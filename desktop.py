@@ -149,7 +149,7 @@ class DesktopHandler(SimpleHTTPRequestHandler):
             except OSError:
                 payload = '{"status":"unavailable","message":"Estado indisponível."}'.encode()
             return self._send(200, "application/json; charset=utf-8", payload)
-        if self.path == "/" and not _has_sinapi_data(
+        if self.path == "/__legacy-bootstrap" and not _has_sinapi_data(
             Path(os.environ["GETSINAPI_DATABASE_PATH"])
         ):
             page = """<!doctype html><html lang="pt-BR"><meta charset="utf-8">
