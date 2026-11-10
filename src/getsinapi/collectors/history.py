@@ -7,15 +7,18 @@ não devem ser declarados como cobertos por este coletor.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
+from curl_cffi import requests as browser_requests
 
 from getsinapi.collectors.caixa import (
     DOWNLOAD_LINK_PATTERN,
     DOWNLOADS_PAGE_URL,
     CaixaDownloadError,
     _http_get,
+    report_url,
 )
 from getsinapi.config import Settings
 
@@ -54,6 +57,57 @@ def _from_html(html: str) -> dict[str, str]:
         target = _trusted_caixa_url(href, DOWNLOADS_PAGE_URL)
         if target and "formato-xlsx" in target.lower():
             found[reference] = target
+    return found
+
+
+def _http_head(url: str, *, timeout: int, headers: dict, session=None):
+    """Consulta metadados do pacote sem transferir dezenas de megabytes."""
+    if session is not None:
+        return session.head(url, timeout=timeout, headers=headers, allow_redirects=True)
+    return browser_requests.head(
+        url, timeout=timeout, headers=headers, impersonate="chrome",
+        allow_redirects=True,
+    )
+
+
+def _from_monthly_urls(settings: Settings, session=None) -> dict[str, str]:
+    """Descobre cada publicação pelo padrão oficial de URL, validando HTTP HEAD."""
+    now = datetime.now(UTC)
+    current = now.year * 12 + now.month - 1
+    first = 2025 * 12
+    headers = {
+        "Accept": "application/zip,application/octet-stream,*/*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Referer": "https://www.caixa.gov.br/poder-publico/modernizacao-gestao/sinapi/Paginas/default.aspx",
+    }
+    found: dict[str, str] = {}
+    for absolute_month in range(first, current + 1):
+        year, zero_month = divmod(absolute_month, 12)
+        reference = f"{year:04d}-{zero_month + 1:02d}"
+        url = report_url(reference)
+        response = None
+        try:
+            response = _http_head(
+                url, timeout=settings.http_timeout, headers=headers, session=session
+            )
+            if response.status_code != 200:
+                continue
+            content_type = str(response.headers.get("Content-Type", "")).lower()
+            if "text/html" in content_type:
+                continue
+            content_length = response.headers.get("Content-Length")
+            if content_length is not None and int(content_length) <= 0:
+                continue
+            found[reference] = url
+        except Exception as exc:
+            log.warning("Não foi possível sondar a publicação %s por URL direta: %s", reference, exc)
+        finally:
+            if response is not None:
+                response.close()
+    log.info(
+        "Sondagem mensal direta da CAIXA: %s competências XLSX identificadas entre 2025-01 e %s.",
+        len(found), f"{now.year:04d}-{now.month:02d}",
+    )
     return found
 
 
@@ -173,6 +227,14 @@ def discover_historical_xlsx_catalog(
         sharepoint_catalog = {}
 
     catalog.update(sharepoint_catalog)
+
+    # A listagem do portal pode ser renderizada dinamicamente e o índice
+    # SharePoint pode não expor todos os itens. A URL mensal oficial é sondada
+    # competência a competência; somente HTTP 200 com resposta não-HTML entra
+    # no inventário. O download completo e a validação ZIP ocorrem na ingestão.
+    monthly_catalog = _from_monthly_urls(config, session=session)
+    catalog.update(monthly_catalog)
+
     if not catalog:
         raise CaixaDownloadError(
             "Nenhuma competência XLSX unificada foi encontrada nas fontes oficiais. "
