@@ -205,6 +205,9 @@ def load_silver_reference(
             raise ValueError(f"Tamanho divergente no artefato Silver: {filename}.")
         if _sha256_file(path) != artifact.get("sha256"):
             raise ValueError(f"SHA-256 divergente no artefato Silver: {filename}.")
+        record_count = sum(1 for _ in _iter_jsonl(path))
+        if record_count != artifact.get("records"):
+            raise ValueError(f"Quantidade de registros divergente no artefato Silver: {filename}.")
         artifact_paths[filename] = path
 
     # Validação em streaming: não carrega centenas de milhares de dicionários na RAM.
