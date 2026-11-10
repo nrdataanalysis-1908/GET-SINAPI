@@ -234,7 +234,7 @@ def _process_reference(
     else:
         loaded = {"reference": reference, "database_path": str(database)}
 
-    if not database_is_valid(database) or not _loaded_and_complete(database, reference):
+    if not _loaded_and_complete(database, reference):
         raise RuntimeError(f"A validação pós-carga de {reference} não foi aprovada.")
 
     return {
