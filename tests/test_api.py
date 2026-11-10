@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from getsinapi import __version__
 from getsinapi.api.main import app
 
 client = TestClient(app)
@@ -12,7 +13,7 @@ def test_health_endpoint_reports_api_availability_only():
     assert response.json() == {
         "status": "ok",
         "service": "get-sinapi-api",
-        "version": "2.1.0",
+        "version": __version__,
     }
 
 
