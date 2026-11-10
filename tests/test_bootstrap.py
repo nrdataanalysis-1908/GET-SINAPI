@@ -39,3 +39,19 @@ def test_bootstrap_coalesces_concurrent_runs(monkeypatch):
         assert result["status"] == "already_running"
     finally:
         bootstrap._BOOTSTRAP_LOCK.release()
+
+def test_catalog_cache_requires_complete_monthly_history():
+    from getsinapi.bootstrap import _catalog_has_full_monthly_range
+
+    assert _catalog_has_full_monthly_range({
+        "2025-01": "https://caixa.gov.br/2025-01.zip",
+        "2025-02": "https://caixa.gov.br/2025-02.zip",
+        "2025-03": "https://caixa.gov.br/2025-03.zip",
+    })
+    assert not _catalog_has_full_monthly_range({
+        "2026-09": "https://caixa.gov.br/2026-09.zip",
+    })
+    assert not _catalog_has_full_monthly_range({
+        "2025-01": "https://caixa.gov.br/2025-01.zip",
+        "2025-03": "https://caixa.gov.br/2025-03.zip",
+    })
