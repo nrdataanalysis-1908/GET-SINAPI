@@ -44,7 +44,7 @@ jobs:
       - name: Run backend tests
         run: python -m pytest -q
       - name: Check bootstrap import and syntax
-        run: python -c "from getsinapi.bootstrap import run_bootstrap, discover_latest_reference; import desktop"
+        run: python -c "from getsinapi.bootstrap import run_bootstrap; from getsinapi.collectors.history import discover_historical_xlsx_catalog; import desktop"
       - name: Package GET-SINAPI V3
         shell: pwsh
         run: |
