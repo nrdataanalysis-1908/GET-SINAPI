@@ -1,135 +1,54 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Activity, Search, RefreshCw, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react";
+import { Activity, Search, RefreshCw, ChevronLeft, ChevronRight, Database, LayoutDashboard, Boxes, Calculator, GitCompareArrows, History, FileText, ShieldCheck, Download, Plus, Trash2, Filter, Menu, X } from "lucide-react";
 
-type CatalogRow = {
-  reference: string; record_type: "INSUMO" | "COMPOSICAO" | "COMPONENTE";
-  code: string; description: string; unit: string; uf: string | null;
-  regime: string | null; encargo_mode: string | null; table_type: string;
-  value: string | null; value_type: string | null; composition_code: string | null;
-  status: string | null; source_file: string; source_sheet: string; source_row: number;
-};
-type CatalogResponse = { items: CatalogRow[]; total: number; limit: number; offset: number };
-type Filters = { search: string; uf: string; record_type: string };
-const PAGE_SIZE = 100;
-const STATES = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
-
-function formatValue(row: CatalogRow) {
-  if (row.value === null || row.value === undefined || row.value === "") return "—";
-  const value = Number(row.value);
-  if (!Number.isFinite(value)) return row.value;
-  return row.value_type === "PREÇO"
-    ? value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-    : value.toLocaleString("pt-BR", { maximumFractionDigits: 8 });
-}
-function App() {
-  const [draft, setDraft] = useState<Filters>({ search: "", uf: "", record_type: "" });
-  const [filters, setFilters] = useState<Filters>({ search: "", uf: "", record_type: "" });
-  const [data, setData] = useState<CatalogResponse>({ items: [], total: 0, limit: PAGE_SIZE, offset: 0 });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [apiOnline, setApiOnline] = useState(false);
-
-  const load = useCallback(async (offset = 0, selected = filters) => {
-    setBusy(true); setError("");
-    try {
-      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-      if (selected.search.trim()) params.set("search", selected.search.trim());
-      if (selected.uf) params.set("uf", selected.uf);
-      if (selected.record_type) params.set("record_type", selected.record_type);
-      const response = await fetch(`/api/catalog?${params.toString()}`, { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.detail || "Falha ao consultar o catálogo SINAPI.");
-      setData(payload as CatalogResponse);
-      setApiOnline(true);
-    } catch (cause) {
-      setApiOnline(false);
-      setError(cause instanceof Error ? cause.message : "API SINAPI indisponível.");
-    } finally { setBusy(false); }
-  }, [filters]);
-
-  useEffect(() => { void load(0, filters); }, [load, filters]);
-
-  function applyFilters(event: FormEvent) {
-    event.preventDefault();
-    setFilters({ ...draft });
-  }
-
-  const page = Math.floor(data.offset / PAGE_SIZE) + 1;
-  const lastPage = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
-  const firstRow = data.total ? data.offset + 1 : 0;
-  const lastRow = Math.min(data.offset + data.items.length, data.total);
-
-  return (
-    <div className="app-shell catalog-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <div className="brand-mark"><Activity size={23} /></div>
-          <div><span className="brand-name">GET-SINAPI</span><span className="brand-subtitle">NR TECH</span></div>
-        </div>
-        <div className="workspace-label">CATÁLOGO OFICIAL</div>
-        <div className="catalog-sidebar-copy">Consulta unificada dos dados publicados pela CAIXA.</div>
-        <div className="sidebar-bottom">
-          <div className="sidebar-status"><span className={apiOnline ? "status-dot" : "status-dot offline-dot"} /><span>{apiOnline ? "Serviço conectado" : "Aguardando conexão"}</span></div>
-          <div className="sidebar-version">GET-SINAPI <span>v2.0.0</span></div>
-        </div>
-      </aside>
-      <main className="main-content">
-        <header className="topbar">
-          <div className="breadcrumb">Plataforma <span>/</span> <strong>Catálogo SINAPI</strong></div>
-          <div className="topbar-right"><span className="environment-tag">CAIXA · SINAPI</span></div>
-        </header>
-        <section className="page-heading catalog-heading">
-          <div>
-            <div className="eyebrow">NR TECH / BASE PÚBLICA</div>
-            <h1>Catálogo SINAPI</h1>
-            <p>Insumos, composições e componentes em uma única listagem paginada.</p>
-          </div>
-          <div className="catalog-total"><span>REGISTROS LOCALIZADOS</span><strong>{data.total.toLocaleString("pt-BR")}</strong></div>
-        </section>
-
-        <section className="panel catalog-panel">
-          <div className="panel-heading">
-            <div><span className="panel-kicker">EXPLORADOR DE DADOS</span><h2>Base consolidada</h2></div>
-            <div className="catalog-live"><span className={apiOnline ? "catalog-live-dot" : "catalog-live-dot offline-dot"} />{apiOnline ? "API operacional" : "API desconectada"}</div>
-          </div>
-          <form className="catalog-filters" onSubmit={applyFilters}>
-            <label className="catalog-search"><span>BUSCA GLOBAL</span><div><Search size={16}/><input value={draft.search} onChange={e=>setDraft(v=>({...v,search:e.target.value}))} placeholder="Código, descrição ou arquivo"/></div></label>
-            <label><span>UF</span><select value={draft.uf} onChange={e=>setDraft(v=>({...v,uf:e.target.value}))}><option value="">Todas as UFs</option>{STATES.map(state=><option key={state} value={state}>{state}</option>)}</select></label>
-            <label><span>TIPO DE REGISTRO</span><select value={draft.record_type} onChange={e=>setDraft(v=>({...v,record_type:e.target.value}))}><option value="">Todos os registros</option><option value="INSUMO">Insumos</option><option value="COMPOSICAO">Composições</option><option value="COMPONENTE">Componentes</option></select></label>
-            <button className="primary-button" disabled={busy} type="submit"><Search size={15}/>{busy ? "Consultando..." : "Aplicar filtros"}</button>
-          </form>
-          {error && <div className="alert-error" role="alert">{error}</div>}
-          <div className="catalog-table-meta">
-            <span><FileSpreadsheet size={16}/> Exibindo {firstRow.toLocaleString("pt-BR")}–{lastRow.toLocaleString("pt-BR")} de {data.total.toLocaleString("pt-BR")} registros</span>
-            <button className="catalog-refresh" type="button" disabled={busy} onClick={()=>void load(data.offset,filters)}><RefreshCw size={14}/> Atualizar listagem</button>
-          </div>
-          <div className="data-table-wrap catalog-table-wrap">
-            <table className="catalog-table">
-              <thead><tr><th>Competência</th><th>Tipo</th><th>Código</th><th>Descrição</th><th>Un.</th><th>UF</th><th>Regime</th><th>Tabela</th><th>Valor / coef.</th><th>Arquivo de origem</th><th>Planilha</th></tr></thead>
-              <tbody>
-                {data.items.map((row,index)=><tr key={row.reference+row.record_type+row.code+row.source_file+row.source_row+index}>
-                  <td className="code-cell">{row.reference}</td>
-                  <td><span className={`catalog-type type-${row.record_type.toLowerCase()}`}>{row.record_type}</span></td>
-                  <td className="code-cell">{row.record_type==="COMPONENTE" ? <>{row.code}<small className="catalog-parent">Composição {row.composition_code}</small></> : row.code}</td>
-                  <td className="catalog-description">{row.description}</td><td>{row.unit || "—"}</td><td>{row.uf || "Nacional"}</td>
-                  <td>{row.regime ? (row.regime==="desonerado"?"Desonerado":"Não desonerado") : "—"}</td>
-                  <td>{row.table_type || "—"}</td><td className="price-cell">{formatValue(row)}</td>
-                  <td className="catalog-source">{row.source_file}</td><td>{row.source_sheet} · {row.source_row}</td>
-                </tr>)}
-              </tbody>
-            </table>
-            {!busy && !data.items.length && <div className="empty-state">{error ? "Não foi possível carregar os registros." : "Nenhum registro corresponde aos filtros."}</div>}
-            {busy && !data.items.length && <div className="empty-state">Consultando a base SINAPI...</div>}
-          </div>
-          <div className="catalog-pagination">
-            <span>Página {page.toLocaleString("pt-BR")} de {lastPage.toLocaleString("pt-BR")}</span>
-            <div><button className="secondary-button" type="button" disabled={busy||data.offset===0} onClick={()=>void load(Math.max(0,data.offset-PAGE_SIZE),filters)}><ChevronLeft size={15}/> Anterior</button>
-              <button className="secondary-button" type="button" disabled={busy||data.offset+PAGE_SIZE>=data.total} onClick={()=>void load(data.offset+PAGE_SIZE,filters)}>Próxima <ChevronRight size={15}/></button></div>
-          </div>
-        </section>
-        <footer className="footer"><span>GET-SINAPI <i>·</i> NR Data Analysis</span><span>Fonte: CAIXA Econômica Federal · SINAPI</span></footer>
-      </main>
-    </div>
-  );
+type Row={reference:string;record_type:string;code:string;description:string;unit:string;uf:string|null;regime:string|null;table_type:string;value:string|null;value_type:string|null;composition_code:string|null;status:string|null;source_file:string;source_sheet:string;source_row:number};
+type Catalog={items:Row[];total:number;limit:number;offset:number};
+type Analytics={reference:string|null;references:{reference:string;source_file:string;loaded_at:string}[];totals:{input_prices:number;compositions:number;composition_items:number;states:number;unavailable_prices:number};by_state:{uf:string;observations:number}[];by_reference:{reference:string;input_prices:number;compositions:number}[];by_table:{table_type:string;observations:number}[];status:{status:string;quantity:number}[]};
+type Page="dashboard"|"catalog"|"compositions"|"compare"|"budget"|"history"|"reports"|"audit";
+const STATES=["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+const nav:{id:Page;label:string;icon:typeof Activity;group:string}[]=[
+{id:"dashboard",label:"Visão executiva",icon:LayoutDashboard,group:"INTELIGÊNCIA"},
+{id:"catalog",label:"Catálogo unificado",icon:Database,group:"DADOS"},
+{id:"compositions",label:"Explorador de composições",icon:Boxes,group:"DADOS"},
+{id:"compare",label:"Comparador de preços",icon:GitCompareArrows,group:"ANÁLISE"},
+{id:"budget",label:"Cesta e orçamento",icon:Calculator,group:"ANÁLISE"},
+{id:"history",label:"Histórico de competências",icon:History,group:"GOVERNANÇA"},
+{id:"reports",label:"Relatórios e exportações",icon:FileText,group:"GOVERNANÇA"},
+{id:"audit",label:"Integridade e auditoria",icon:ShieldCheck,group:"GOVERNANÇA"}];
+const fmt=(n:number)=>n.toLocaleString("pt-BR");
+const brl=(n:number)=>n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+async function api<T>(url:string,init?:RequestInit):Promise<T>{const r=await fetch(url,{cache:"no-store",...init});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Falha na operação.");return d as T;}
+function App(){
+const [page,setPage]=useState<Page>("dashboard"),[mobile,setMobile]=useState(false),[online,setOnline]=useState(false),[error,setError]=useState("");
+const [a,setA]=useState<Analytics|null>(null),[refs,setRefs]=useState<string[]>([]),[reference,setReference]=useState("");
+const [catalog,setCatalog]=useState<Catalog>({items:[],total:0,limit:100,offset:0}),[search,setSearch]=useState(""),[uf,setUf]=useState("MG"),[type,setType]=useState(""),[regime,setRegime]=useState(""),[table,setTable]=useState(""),[min,setMin]=useState(""),[max,setMax]=useState(""),[priced,setPriced]=useState("all"),[advanced,setAdvanced]=useState(false),[busy,setBusy]=useState(false);
+const [composition,setComposition]=useState(""),[components,setComponents]=useState<Record<string,unknown>[]>([]);
+const [budget,setBudget]=useState<{code:string;item_type:string;quantity:string}[]>([{code:"",item_type:"COMPOSICAO",quantity:"1"}]),[budgetResult,setBudgetResult]=useState<Record<string,unknown>|null>(null);
+const [compareCode,setCompareCode]=useState(""),[compareRows,setCompareRows]=useState<Record<string,unknown>[]>([]);
+const [reportFormat,setReportFormat]=useState("csv");
+const loadAnalytics=useCallback(async()=>{try{const d=await api<Analytics>("/api/analytics");setA(d);setRefs(d.references.map(x=>x.reference));setReference(d.reference||"");setOnline(true);}catch(e){setOnline(false);setError(e instanceof Error?e.message:"API indisponível.");}},[]);
+const loadCatalog=useCallback(async(offset=0)=>{setBusy(true);setError("");try{const p=new URLSearchParams({limit:"100",offset:String(offset)});if(search.trim().length>=2)p.set("search",search.trim());if(reference)p.set("reference",reference);if(uf)p.set("uf",uf);if(type)p.set("record_type",type);if(regime)p.set("regime",regime);if(table)p.set("table_type",table);if(min)p.set("min_value",min);if(max)p.set("max_value",max);if(priced!=="all")p.set("priced_only",priced==="yes"?"true":"false");const d=await api<Catalog>("/api/catalog/advanced?"+p);setCatalog(d);setOnline(true);}catch(e){setError(e instanceof Error?e.message:"Falha ao consultar catálogo.");}finally{setBusy(false);}},[search,reference,uf,type,regime,table,min,max,priced]);
+useEffect(()=>{void loadAnalytics();},[loadAnalytics]);
+useEffect(()=>{if(page==="catalog")void loadCatalog(0);},[page,loadCatalog]);
+const selected=reference||a?.reference||"",total=(a?.totals.input_prices||0)+(a?.totals.compositions||0)+(a?.totals.composition_items||0);
+const pageNo=Math.floor(catalog.offset/100)+1,lastPage=Math.max(1,Math.ceil(catalog.total/100));
+const title=nav.find(x=>x.id===page)?.label||"Visão executiva";
+const exportData=(format:string)=>{const p=new URLSearchParams({format});if(search.trim().length>=2)p.set("search",search.trim());if(reference)p.set("reference",reference);if(uf)p.set("uf",uf);if(type)p.set("record_type",type);if(regime)p.set("regime",regime);if(table)p.set("table_type",table);if(min)p.set("min_value",min);if(max)p.set("max_value",max);if(priced!=="all")p.set("priced_only",priced==="yes"?"true":"false");window.location.href="/api/catalog/export?"+p;};
+const openComposition=async()=>{if(!composition.trim()||!selected)return;try{setComponents(await api<Record<string,unknown>[]>("/api/composicoes/"+encodeURIComponent(composition)+" /itens?reference="+selected));}catch(e){setError(e instanceof Error?e.message:"Erro ao abrir composição.");}};
+const compare=async()=>{if(!compareCode.trim()||!selected)return;try{setCompareRows(await api<Record<string,unknown>[]>("/api/compare/prices?code="+encodeURIComponent(compareCode)+"&reference="+selected+"&regime="+regimeValue));}catch(e){setError(e instanceof Error?e.message:"Erro ao comparar preços.");}};
+const regimeValue=regime||"nao_desonerado";
+const calcBudget=async(e:FormEvent)=>{e.preventDefault();try{const d=await api<Record<string,unknown>>("/api/budget",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reference:selected,uf,regime:regimeValue,encargo_mode:"com_encargos",items:budget.filter(x=>x.code.trim()).map(x=>({code:x.code,item_type:x.item_type,quantity:Number(x.quantity)}))})});setBudgetResult(d);}catch(e){setError(e instanceof Error?e.message:"Erro no cálculo.");}};
+const Metric=({label,value,foot}:{label:string;value:string;foot:string})=><div className="metric-card"><div className="metric-top">{label}</div><div className="metric-value">{value}</div><div className="metric-foot">{foot}</div></div>;
+const Bar=({label,value,maxValue}:{label:string;value:number;maxValue:number})=><div className="chart-bar-row"><span>{label}</span><div className="chart-track"><i style={{width:(maxValue?Math.max(1,value/maxValue*100):0)+"%"}}/></div><b>{fmt(value)}</b></div>;
+const heading=(eyebrow:string,h:string,sub:string)=><section className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{h}</h1><p>{sub}</p></div></section>;
+const dashboard=<>{heading("NR TECH / INTELIGÊNCIA DE CUSTOS","Visão executiva","Indicadores calculados diretamente da base SINAPI local.")}<div className="system-banner"><div className="banner-copy"><strong>Base consolidada · CAIXA SINAPI</strong><span>Dados reais do SQLite. Sem indicadores fictícios ou demonstrativos.</span></div><span className="development-pill">{selected||"SEM COMPETÊNCIA"}</span></div><div className="metrics-grid"><Metric label="REGISTROS CONSOLIDADOS" value={fmt(total)} foot="Insumos, composições e componentes"/><Metric label="PREÇOS DE INSUMOS" value={fmt(a?.totals.input_prices||0)} foot="Observações de preços carregadas"/><Metric label="COMPOSIÇÕES" value={fmt(a?.totals.compositions||0)} foot="Cadastros disponíveis"/><Metric label="UFs COM DADOS" value={fmt(a?.totals.states||0)} foot="Cobertura da competência"/></div><div className="analytics-grid"><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">COBERTURA GEOGRÁFICA</span><h2>Registros por UF</h2></div></div>{(a?.by_state||[]).map(x=><Bar key={x.uf} label={x.uf} value={x.observations} maxValue={Math.max(...(a?.by_state||[]).map(y=>y.observations),1)}/>)}</section><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">SÉRIE TEMPORAL</span><h2>Histórico por competência</h2></div></div>{(a?.by_reference||[]).map(x=><Bar key={x.reference} label={x.reference} value={x.input_prices+x.compositions} maxValue={Math.max(...(a?.by_reference||[]).map(y=>y.input_prices+y.compositions),1)}/>)}</section></div><div className="analytics-grid"><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">DISPONIBILIDADE</span><h2>Situação dos preços</h2></div></div>{(a?.status||[]).map(x=><Bar key={x.status} label={x.status} value={x.quantity} maxValue={Math.max(...(a?.status||[]).map(y=>y.quantity),1)}/>)}</section><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">ESTRUTURA</span><h2>Distribuição por tabela</h2></div></div>{(a?.by_table||[]).map(x=><Bar key={x.table_type} label={x.table_type} value={x.observations} maxValue={Math.max(...(a?.by_table||[]).map(y=>y.observations),1)}/>)}</section></div></>;
+const catalogPage=<>{heading("NR TECH / EXPLORADOR DE DADOS","Catálogo unificado","Busca global, filtros combináveis e rastreabilidade até arquivo, planilha e linha.")}<section className="panel catalog-panel"><div className="panel-heading"><div><span className="panel-kicker">CONSULTA MULTIDIMENSIONAL</span><h2>Filtros da consulta</h2></div><button className="text-action" onClick={()=>setAdvanced(!advanced)}><Filter size={14}/>{advanced?"Ocultar filtros avançados":"Filtros avançados"}</button></div><form className="catalog-filters" onSubmit={e=>{e.preventDefault();void loadCatalog(0);}}><label className="catalog-search"><span>BUSCA GLOBAL</span><div><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Código, descrição ou arquivo"/></div></label><label><span>COMPETÊNCIA</span><select value={reference} onChange={e=>setReference(e.target.value)}><option value="">Todas</option>{refs.map(x=><option key={x}>{x}</option>)}</select></label><label><span>UF</span><select value={uf} onChange={e=>setUf(e.target.value)}><option value="">Todas</option>{STATES.map(x=><option key={x}>{x}</option>)}</select></label><label><span>TIPO</span><select value={type} onChange={e=>setType(e.target.value)}><option value="">Todos</option><option value="INSUMO">Insumos</option><option value="COMPOSICAO">Composições</option><option value="COMPONENTE">Componentes</option></select></label><button className="primary-button"><Search size={15}/>Aplicar</button></form>{advanced&&<div className="filter-bar"><label>REGIME<select value={regime} onChange={e=>setRegime(e.target.value)}><option value="">Todos</option><option value="desonerado">Desonerado</option><option value="nao_desonerado">Não desonerado</option></select></label><label>TABELA<select value={table} onChange={e=>setTable(e.target.value)}><option value="">Todas</option><option>Analítico</option><option>ISD</option><option>ICD</option><option>ISE</option></select></label><label>VALOR MÍNIMO<input type="number" step="any" value={min} onChange={e=>setMin(e.target.value)}/></label><label>VALOR MÁXIMO<input type="number" step="any" value={max} onChange={e=>setMax(e.target.value)}/></label><label>VALOR<select value={priced} onChange={e=>setPriced(e.target.value)}><option value="all">Todos</option><option value="yes">Com preço/coeficiente</option><option value="no">Sem valor</option></select></label></div>}{error&&<div className="alert-error">{error}</div>}<div className="catalog-table-meta"><span>Exibindo {fmt(catalog.total?catalog.offset+1:0)}–{fmt(Math.min(catalog.offset+catalog.items.length,catalog.total))} de {fmt(catalog.total)}</span><button className="catalog-refresh" onClick={()=>void loadCatalog(catalog.offset)} disabled={busy}><RefreshCw size={14}/>Atualizar</button></div><div className="data-table-wrap catalog-table-wrap"><table className="catalog-table"><thead><tr>{["Competência","Tipo","Código","Descrição","Un.","UF","Regime","Tabela","Valor / coef.","Arquivo","Planilha"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{catalog.items.map((r,i)=><tr key={r.reference+r.code+r.source_row+i}><td>{r.reference}</td><td>{r.record_type}</td><td className="code-cell">{r.code}{r.composition_code&&<small className="catalog-parent">Composição {r.composition_code}</small>}</td><td className="catalog-description">{r.description}</td><td>{r.unit||"—"}</td><td>{r.uf||"Nacional"}</td><td>{r.regime||"—"}</td><td>{r.table_type}</td><td className="price-cell">{r.value==null?"—":r.value_type==="PREÇO"?brl(Number(r.value)):r.value}</td><td>{r.source_file}</td><td>{r.source_sheet} · {r.source_row}</td></tr>)}</tbody></table>{busy&&<div className="empty-state">Consultando base...</div>}{!busy&&!catalog.items.length&&<div className="empty-state">Nenhum registro encontrado.</div>}</div><div className="catalog-pagination"><span>Página {fmt(pageNo)} de {fmt(lastPage)}</span><div><button className="secondary-button" disabled={busy||catalog.offset===0} onClick={()=>void loadCatalog(Math.max(0,catalog.offset-100))}><ChevronLeft/>Anterior</button><button className="secondary-button" disabled={busy||catalog.offset+100>=catalog.total} onClick={()=>void loadCatalog(catalog.offset+100)}>Próxima<ChevronRight/></button></div></div></section></>;
+const compositionPage=<>{heading("ENGENHARIA DE CUSTOS","Explorador de composições","Consulte a estrutura analítica e os coeficientes dos componentes.")}<section className="panel workspace-panel"><div className="filter-bar"><label className="search-field"><Search size={15}/><input value={composition} onChange={e=>setComposition(e.target.value)} placeholder="Código da composição"/></label><button className="primary-button" onClick={()=>void openComposition()}><Boxes size={15}/>Abrir composição</button></div>{components.length>0&&<div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Descrição</th><th>Unidade</th><th>Coeficiente</th><th>Status</th></tr></thead><tbody>{components.map((x,i)=><tr key={String(x.item_code)+i}><td>{String(x.item_code||"")}</td><td>{String(x.item_type||"")}</td><td>{String(x.description||"")}</td><td>{String(x.unit||"")}</td><td>{String(x.coefficient||"")}</td><td>{String(x.status||"")}</td></tr>)}</tbody></table></div>}</section></>;
+const budgetPage=<>{heading("PLANEJAMENTO","Cesta de custos e orçamento","Monte quantitativos e calcule o custo total pelo motor recursivo.")}<section className="panel workspace-panel"><form className="budget-form" onSubmit={calcBudget}><div className="budget-context"><label>COMPETÊNCIA<select value={reference||selected} onChange={e=>setReference(e.target.value)}>{refs.map(x=><option key={x}>{x}</option>)}</select></label><label>UF<select value={uf} onChange={e=>setUf(e.target.value)}>{STATES.map(x=><option key={x}>{x}</option>)}</select></label><label>REGIME<select value={regimeValue} onChange={e=>setRegime(e.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label></div><div className="panel-heading"><h2>Itens da cesta</h2><button type="button" className="text-action" onClick={()=>setBudget(v=>[...v,{code:"",item_type:"COMPOSICAO",quantity:"1"}])}><Plus/>Adicionar item</button></div>{budget.map((x,i)=><div className="budget-line" key={i}><label>CÓDIGO<input value={x.code} onChange={e=>setBudget(v=>v.map((z,j)=>j===i?{...z,code:e.target.value}:z))}/></label><label>TIPO<select value={x.item_type} onChange={e=>setBudget(v=>v.map((z,j)=>j===i?{...z,item_type:e.target.value}:z))}><option value="COMPOSICAO">Composição</option><option value="INSUMO">Insumo</option></select></label><label>QUANTIDADE<input type="number" min="0" step="any" value={x.quantity} onChange={e=>setBudget(v=>v.map((z,j)=>j===i?{...z,quantity:e.target.value}:z))}/></label><button type="button" className="remove-button" onClick={()=>setBudget(v=>v.filter((_,j)=>j!==i))} disabled={budget.length===1}><Trash2/></button></div>)}<button className="primary-button"><Calculator size={15}/>Calcular orçamento</button></form>{budgetResult&&<pre className="result-json">{JSON.stringify(budgetResult,null,2)}</pre>}</section></>;
+const comparePage=<>{heading("ANÁLISE COMPARATIVA","Comparador de preços","Compare o mesmo código entre as UFs na competência escolhida.")}<section className="panel workspace-panel"><div className="filter-bar"><label className="search-field"><Search size={15}/><input value={compareCode} onChange={e=>setCompareCode(e.target.value)} placeholder="Código do insumo"/></label><label>COMPETÊNCIA<select value={reference||selected} onChange={e=>setReference(e.target.value)}>{refs.map(x=><option key={x}>{x}</option>)}</select></label><button className="primary-button" onClick={()=>void compare()}><GitCompareArrows/>Comparar</button></div><div className="data-table-wrap"><table><thead><tr><th>UF</th><th>Código</th><th>Descrição</th><th>Un.</th><th>Regime</th><th>Preço</th><th>Status</th></tr></thead><tbody>{compareRows.map((x,i)=><tr key={String(x.uf)+i}><td>{String(x.uf)}</td><td>{String(x.code)}</td><td>{String(x.description)}</td><td>{String(x.unit)}</td><td>{String(x.regime)}</td><td>{x.price==null?"—":brl(Number(x.price))}</td><td>{String(x.status)}</td></tr>)}</tbody></table></div></section></>;
+const historyPage=<>{heading("GOVERNANÇA","Histórico de competências","Somente competências efetivamente persistidas na base.")}<section className="panel workspace-panel"><div className="data-table-wrap"><table><thead><tr><th>Competência</th><th>Arquivo de origem</th><th>Data da carga</th><th>Situação</th></tr></thead><tbody>{(a?.references||[]).map(x=><tr key={x.reference}><td>{x.reference}</td><td>{x.source_file}</td><td>{x.loaded_at}</td><td><span className="status-label good">CARREGADA</span></td></tr>)}</tbody></table></div></section></>;
+const reportsPage=<>{heading("GOVERNANÇA / EXPORTAÇÃO","Relatórios e exportações","Exporte a consulta atual em CSV ou JSON, respeitando os filtros selecionados.")}<section className="panel workspace-panel"><div className="filter-bar"><label>FORMATO<select value={reportFormat} onChange={e=>setReportFormat(e.target.value)}><option value="csv">CSV compatível com Excel</option><option value="json">JSON</option></select></label><button className="primary-button" onClick={()=>exportData(reportFormat)}><Download size={15}/>Exportar registros filtrados</button><button className="secondary-button" onClick={()=>setPage("catalog")}>Configurar filtros</button></div><p className="panel-note">A exportação é gerada no backend a partir da base SQLite. Não se limita às 100 linhas da página visível.</p></section></>;
+const auditPage=<>{heading("CONFIABILIDADE / LINHAGEM","Integridade e auditoria","Volumetria, origem e estado da base carregada.")}<div className="metrics-grid"><Metric label="API" value={online?"ONLINE":"OFFLINE"} foot="Serviço local"/><Metric label="COMPETÊNCIAS" value={fmt(refs.length)} foot="Histórico persistido"/><Metric label="PREÇOS INDISPONÍVEIS" value={fmt(a?.totals.unavailable_prices||0)} foot="Ausentes ou não pesquisados"/><Metric label="REGISTROS" value={fmt(total)} foot="Total consolidado"/></div><section className="panel workspace-panel"><div className="panel-heading"><h2>Rastreabilidade da fonte</h2><button className="secondary-button" onClick={()=>void loadAnalytics()}><RefreshCw/>Atualizar</button></div><p className="panel-note">O catálogo mantém competência, arquivo, planilha e linha de origem. Esta tela não declara validação SHA-256 em tempo real; os checksums são registrados pelo pipeline de ingestão.</p><div className="data-table-wrap"><table><thead><tr><th>Competência</th><th>Arquivo</th><th>Data de carga</th></tr></thead><tbody>{(a?.references||[]).map(x=><tr key={x.reference}><td>{x.reference}</td><td>{x.source_file}</td><td>{x.loaded_at}</td></tr>)}</tbody></table></div></section></>;
+return <div className="app-shell"><aside className={"sidebar "+(mobile?"sidebar-open":"")}><div className="brand-lockup"><div className="brand-mark"><Activity size={23}/></div><div><span className="brand-name">GET-SINAPI</span><span className="brand-subtitle">NR TECH · PLATAFORMA</span></div></div><div className="workspace-label">PLATAFORMA DE CUSTOS</div>{["INTELIGÊNCIA","DADOS","ANÁLISE","GOVERNANÇA"].map(g=><div key={g}><div className="nav-group-label">{g}</div><nav className="navigation">{nav.filter(n=>n.group===g).map(n=><button key={n.id} className={"nav-item "+(page===n.id?"active":"")} onClick={()=>{setPage(n.id);setMobile(false);}}><n.icon size={16}/>{n.label}</button>)}</nav></div>)}<div className="sidebar-bottom"><div className="sidebar-status"><span className={online?"status-dot":"status-dot offline-dot"}/><span>{online?"Serviço conectado":"Aguardando conexão"}</span></div><div className="sidebar-version">NR TECH <span>v2.1.0</span></div></div></aside><main className="main-content"><header className="topbar"><div className="breadcrumb">GET-SINAPI <span>/</span><strong>{title}</strong></div><div className="topbar-right"><span className="environment-tag">CAIXA · SINAPI</span><button className="icon-button mobile-menu" onClick={()=>setMobile(!mobile)}>{mobile?<X/>:<Menu/>}</button></div></header>{error&&<div className="alert-error">{error}</div>}{page==="dashboard"&&dashboard}{page==="catalog"&&catalogPage}{page==="compositions"&&compositionPage}{page==="compare"&&comparePage}{page==="budget"&&budgetPage}{page==="history"&&historyPage}{page==="reports"&&reportsPage}{page==="audit"&&auditPage}<footer className="footer"><span>GET-SINAPI · NR TECH</span><span>Fonte: CAIXA Econômica Federal · SINAPI</span></footer></main></div>;
 }
 export default App;
