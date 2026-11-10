@@ -1,0 +1,53 @@
+name: GET-SINAPI V2 Windows Build
+on:
+  push:
+    branches:
+      - v2/development
+  workflow_dispatch:
+
+concurrency:
+  group: getsinapi-v2-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-v2:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+      - name: Install Python package and build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install pyinstaller
+      - name: Lint Python
+        run: python -m ruff check .
+      - name: Run backend tests
+        run: python -m pytest -q
+      - name: Check bootstrap import and syntax
+        run: python -c "from getsinapi.bootstrap import run_bootstrap, discover_latest_reference; import desktop"
+      - name: Package GET-SINAPI V2
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onedir --noconsole --name GET-SINAPI-V2 --add-data "frontend/dist;frontend/dist" --collect-all fastapi --collect-all starlette --collect-all uvicorn --collect-all pandas --collect-all openpyxl --collect-all xlrd --collect-all sqlalchemy --collect-all requests --collect-all curl_cffi --collect-all bs4 --collect-all yaml --hidden-import getsinapi.bootstrap desktop.py
+          Compress-Archive -Path "dist/GET-SINAPI-V2/*" -DestinationPath "GET-SINAPI-V2-Windows.zip" -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GET-SINAPI-V2-Windows
+          path: GET-SINAPI-V2-Windows.zip
+          if-no-files-found: error
+          retention-days: 14
