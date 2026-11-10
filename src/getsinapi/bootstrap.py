@@ -233,6 +233,20 @@ def _process_reference(
     }
 
 
+def _catalog_has_full_monthly_range(catalog: dict) -> bool:
+    """Reject stale/partial inventories that would hide earlier competencies."""
+    if UNIFIED_LAYOUT_START not in catalog:
+        return False
+    references = {str(reference) for reference in catalog}
+    last_reference = max(references)
+    year, month = 2025, 1
+    while f"{year:04d}-{month:02d}" <= last_reference:
+        if f"{year:04d}-{month:02d}" not in references:
+            return False
+        year, month = _month_shift(year, month, 1)
+    return True
+
+
 def _load_discovery_cache(config: Settings, *, force: bool) -> dict[str, str] | None:
     path = config.manifest_dir / "historical-catalog.json"
     if force or not path.is_file():
@@ -241,7 +255,12 @@ def _load_discovery_cache(config: Settings, *, force: bool) -> dict[str, str] | 
         payload = json.loads(path.read_text(encoding="utf-8"))
         age = time.time() - float(payload["checked_at"])
         catalog = payload["catalog"]
-        if age <= DISCOVERY_CACHE_TTL_SECONDS and isinstance(catalog, dict) and catalog:
+        if (
+            age <= DISCOVERY_CACHE_TTL_SECONDS
+            and isinstance(catalog, dict)
+            and catalog
+            and _catalog_has_full_monthly_range(catalog)
+        ):
             return {str(key): str(value) for key, value in catalog.items()}
     except (OSError, ValueError, KeyError, TypeError):
         return None
