@@ -107,24 +107,30 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     if "status" not in item_columns:
         connection.execute("ALTER TABLE composition_items ADD COLUMN status TEXT")
 
-    duplicate = connection.execute(
-        """SELECT reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type,
-                  COUNT(*) AS occurrences
-           FROM input_prices
-           GROUP BY reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
-           HAVING COUNT(*) > 1 LIMIT 1"""
+    # A auditoria GROUP BY é necessária somente na migração de bancos antigos.
+    # Executá-la em toda competência relê a tabela histórica inteira e torna a
+    # ingestão progressivamente mais lenta à medida que o banco cresce.
+    natural_index = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='uq_input_prices_natural_key'"
     ).fetchone()
-    if duplicate is not None:
-        raise ValueError(
-            "Chave natural de preços duplicada no banco existente; "
-            "reconcilie os registros antes de criar a restrição idempotente."
+    if natural_index is None:
+        duplicate = connection.execute(
+            """SELECT 1
+               FROM input_prices
+               GROUP BY reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
+               HAVING COUNT(*) > 1 LIMIT 1"""
+        ).fetchone()
+        if duplicate is not None:
+            raise ValueError(
+                "Chave natural de preços duplicada no banco existente; "
+                "reconcilie os registros antes de criar a restrição idempotente."
+            )
+        connection.execute(
+            """CREATE UNIQUE INDEX uq_input_prices_natural_key
+               ON input_prices(
+                   reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
+               )"""
         )
-    connection.execute(
-        """CREATE UNIQUE INDEX IF NOT EXISTS uq_input_prices_natural_key
-           ON input_prices(
-               reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
-           )"""
-    )
 
 
 def initialize_database(database_path: str | Path) -> None:
@@ -197,6 +203,7 @@ def load_silver_reference(
         raise ValueError("Inventário de artefatos Silver incompleto ou inconsistente.")
 
     artifact_paths: dict[str, Path] = {}
+    counts: dict[str, int] = {}
     for filename in sorted(expected_files):
         path = base / filename
         artifact = metadata[filename]
@@ -204,38 +211,41 @@ def load_silver_reference(
             raise FileNotFoundError(f"Artefato Silver não encontrado: {path}")
         if path.stat().st_size != artifact.get("size_bytes"):
             raise ValueError(f"Tamanho divergente no artefato Silver: {filename}.")
-        if _sha256_file(path) != artifact.get("sha256"):
+
+        # Uma única passagem valida hash, JSON, competência e contagem.
+        # A unicidade da chave natural é garantida pelo índice UNIQUE do SQLite
+        # durante executemany, sem manter centenas de milhares de chaves em RAM.
+        digest = hashlib.sha256()
+        record_count = 0
+        with path.open("rb") as stream:
+            for line_number, raw_line in enumerate(stream, start=1):
+                digest.update(raw_line)
+                if not raw_line.strip():
+                    continue
+                try:
+                    record = json.loads(raw_line)
+                except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    raise ValueError(
+                        f"JSONL inválido em {filename}, linha {line_number}."
+                    ) from exc
+                if not isinstance(record, dict):
+                    raise TypeError(
+                        f"Registro JSONL deve ser objeto: {filename}:{line_number}."
+                    )
+                if record.get("reference") != reference:
+                    raise ValueError(
+                        f"Competência divergente em {filename}, linha {line_number}."
+                    )
+                record_count += 1
+
+        if digest.hexdigest() != artifact.get("sha256"):
             raise ValueError(f"SHA-256 divergente no artefato Silver: {filename}.")
-        record_count = sum(1 for _ in _iter_jsonl(path))
         if record_count != artifact.get("records"):
-            raise ValueError(f"Quantidade de registros divergente no artefato Silver: {filename}.")
-        artifact_paths[filename] = path
-
-    # Validação em streaming: não carrega centenas de milhares de dicionários na RAM.
-    seen_price_keys: set[tuple[Any, ...]] = set()
-    for filename, path in artifact_paths.items():
-        for row_number, record in enumerate(_iter_jsonl(path), start=1):
-            if record.get("reference") != reference:
-                raise ValueError("Há registros com competência divergente nos artefatos Silver.")
-            if filename != "input_prices.jsonl":
-                continue
-            key = (
-                record.get("reference"), record.get("code"), record.get("uf"),
-                record.get("regime"), record.get("encargo_mode"), record.get("table_type"),
+            raise ValueError(
+                f"Quantidade de registros divergente no artefato Silver: {filename}."
             )
-            try:
-                duplicate = key in seen_price_keys
-                seen_price_keys.add(key)
-            except TypeError as exc:
-                raise ValueError(f"Invalid input-price natural key at record {row_number}.") from exc
-            if duplicate:
-                raise ValueError(f"duplicate input-price natural key at record {row_number}: {key!r}")
-
-    counts = {
-        "input_prices": metadata["input_prices.jsonl"]["records"],
-        "compositions": metadata["compositions.jsonl"]["records"],
-        "composition_items": metadata["composition_items.jsonl"]["records"],
-    }
+        artifact_paths[filename] = path
+        counts[filename.removesuffix(".jsonl")] = record_count
 
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
