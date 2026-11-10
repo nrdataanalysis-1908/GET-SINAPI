@@ -80,3 +80,20 @@
 .budget-context label{display:grid;gap:6px;color:#7891a8;font:9px 'DM Mono',monospace}
 .budget-context select{min-width:150px;background:#0a1a2b;border:1px solid #29435c;border-radius:6px;color:#dce9f6;padding:9px 10px}
 @media(max-width:700px){.mobile-menu{display:grid}.sidebar{display:none}.sidebar.sidebar-open{display:flex;position:relative;width:100%;height:auto}.sidebar.sidebar-open .sidebar-bottom{display:block}.sidebar.sidebar-open .navigation{display:grid}.sidebar.sidebar-open .workspace-label{display:block}.nav-group-label{padding-top:12px}.main-content{margin:0}}
+
+
+/* Local authentication */
+.auth-screen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,rgba(32,107,160,.22),transparent 45%),#07111f}
+.auth-card{width:min(430px,100%);padding:34px;border:1px solid #294258;border-radius:15px;background:linear-gradient(145deg,#10243a,#091725);box-shadow:0 24px 80px #0008;display:grid;gap:14px}
+.auth-card .brand-mark{width:48px;height:48px}
+.auth-card h1{font-size:25px;margin:0}
+.auth-card p{font-size:12px;line-height:1.7;color:#91a8bc;margin:0}
+.auth-card small{color:#668199;font:9px 'DM Mono',monospace}
+.auth-form{display:grid;gap:14px;margin:8px 0}
+.auth-form label{display:grid;gap:7px;color:#8199ad;font:9px 'DM Mono',monospace;letter-spacing:.1em}
+.auth-form input{height:42px;width:100%;border:1px solid #294258;border-radius:7px;background:#081522;color:#e5f3ff;padding:0 12px;outline:0;font:12px Manrope,sans-serif}
+.auth-form input:focus{border-color:#60e6ff}
+.auth-form .primary-button{height:42px}
+.user-tag{color:#8ba3b9;font:9px 'DM Mono',monospace}
+.logout-button{cursor:pointer}
+@media(max-width:700px){.auth-card{padding:25px}}
