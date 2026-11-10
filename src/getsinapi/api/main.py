@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import csv
+import io
+import json
 from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -408,6 +412,125 @@ def analytics(reference: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2
             "by_state": by_state, "by_reference": by_reference,
             "by_table": by_table, "status": status
         }
+
+
+
+
+@app.get("/api/catalog/advanced", tags=["Catálogo"], summary="Consulta avançada com filtros combináveis")
+def catalog_advanced(
+    search: str | None = Query(None, min_length=2, max_length=120),
+    reference: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    uf: str | None = Query(None, min_length=2, max_length=2, pattern="^[A-Za-z]{2}$"),
+    record_type: str | None = Query(None, pattern="^(INSUMO|COMPOSICAO|COMPONENTE)$"),
+    regime: str | None = Query(None, pattern="^(desonerado|nao_desonerado)$"),
+    table_type: str | None = Query(None, max_length=80),
+    min_value: float | None = Query(None),
+    max_value: float | None = Query(None),
+    priced_only: bool | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    cte = """
+      WITH catalog AS (
+        SELECT reference,'INSUMO' record_type,code,description,unit,uf,regime,
+          encargo_mode,table_type,price value,'PREÇO' value_type,NULL composition_code,
+          status,source_file,source_sheet,source_row FROM input_prices
+        UNION ALL
+        SELECT reference,'COMPOSICAO',code,description,unit,NULL,NULL,NULL,'Analítico',
+          NULL,NULL,NULL,status,source_file,source_sheet,source_row FROM compositions
+        UNION ALL
+        SELECT reference,'COMPONENTE',item_code,description,unit,NULL,NULL,NULL,'Analítico',
+          coefficient,'COEFICIENTE',composition_code,status,source_file,source_sheet,source_row
+          FROM composition_items
+      )
+    """
+    clauses: list[str] = []
+    params: list[Any] = []
+    for column, value in (("reference", reference), ("record_type", record_type),
+                          ("regime", regime), ("table_type", table_type)):
+        if value:
+            clauses.append(column + " = ?")
+            params.append(value)
+    if uf:
+        clauses.append("(uf = ? OR uf IS NULL)")
+        params.append(uf.upper())
+    if search:
+        term = "%" + _escape_like(search.strip()) + "%"
+        clauses.append("(code LIKE ? ESCAPE '\\\\' OR description LIKE ? ESCAPE '\\\\' OR composition_code LIKE ? ESCAPE '\\\\' OR source_file LIKE ? ESCAPE '\\\\')")
+        params.extend((term, term, term, term))
+    if min_value is not None:
+        clauses.append("CAST(REPLACE(value, ',', '.') AS REAL) >= ?")
+        params.append(min_value)
+    if max_value is not None:
+        clauses.append("CAST(REPLACE(value, ',', '.') AS REAL) <= ?")
+        params.append(max_value)
+    if priced_only is True:
+        clauses.append("value IS NOT NULL")
+    elif priced_only is False:
+        clauses.append("value IS NULL")
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    try:
+        with closing(_connect()) as connection, connection:
+            total = int(connection.execute(cte + " SELECT COUNT(*) FROM catalog" + where, tuple(params)).fetchone()[0])
+            rows = [dict(row) for row in connection.execute(
+                cte + " SELECT * FROM catalog" + where +
+                " ORDER BY reference DESC, record_type, code, uf LIMIT ? OFFSET ?",
+                (*params, limit, offset)).fetchall()]
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            raise HTTPException(status_code=503, detail="Banco SINAPI ainda não foi inicializado.") from exc
+        raise
+    return {"items": rows, "total": total, "limit": limit, "offset": offset}
+
+
+@app.get("/api/catalog/export", tags=["Relatórios"], summary="Exporta o catálogo filtrado em CSV ou JSON")
+def export_catalog(
+    format: str = Query("csv", pattern="^(csv|json)$"),
+    search: str | None = Query(None, min_length=2, max_length=120),
+    reference: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    uf: str | None = Query(None, min_length=2, max_length=2, pattern="^[A-Za-z]{2}$"),
+    record_type: str | None = Query(None, pattern="^(INSUMO|COMPOSICAO|COMPONENTE)$"),
+    regime: str | None = Query(None, pattern="^(desonerado|nao_desonerado)$"),
+    table_type: str | None = Query(None, max_length=80),
+    min_value: float | None = Query(None),
+    max_value: float | None = Query(None),
+    priced_only: bool | None = Query(None),
+) -> StreamingResponse:
+    rows: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        result = catalog_advanced(search, reference, uf, record_type, regime, table_type,
+                                  min_value, max_value, priced_only, 500, offset)
+        rows.extend(result["items"])
+        offset += 500
+        if offset >= result["total"] or not result["items"]:
+            break
+    if format == "json":
+        payload = json.dumps({"total": len(rows), "items": rows}, ensure_ascii=False, indent=2).encode("utf-8")
+        return StreamingResponse(iter([payload]), media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=get-sinapi-catalogo.json"})
+    output = io.StringIO(newline="")
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=list(rows[0].keys()), delimiter=";")
+        writer.writeheader()
+        writer.writerows(rows)
+    payload = ("\ufeff" + output.getvalue()).encode("utf-8")
+    return StreamingResponse(iter([payload]), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=get-sinapi-catalogo.csv"})
+
+
+@app.get("/api/compare/prices", tags=["Análises"], summary="Compara preço de insumo entre UFs")
+def compare_prices(
+    code: str = Query(..., min_length=1, max_length=40),
+    reference: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    regime: str = Query("nao_desonerado", pattern="^(desonerado|nao_desonerado)$"),
+    encargo_mode: str = Query("com_encargos", pattern="^(com_encargos|sem_encargos)$"),
+) -> list[dict[str, Any]]:
+    return _rows(
+        """SELECT code,description,unit,uf,regime,encargo_mode,table_type,price,status,price_origin
+           FROM input_prices WHERE reference=? AND code=? AND regime=? AND encargo_mode=?
+           ORDER BY uf,table_type""",
+        (reference, code, regime, encargo_mode))
 
 
 @app.get("/api/insumos/count", tags=["Insumos"], summary="Total de resultados do catálogo de insumos")
