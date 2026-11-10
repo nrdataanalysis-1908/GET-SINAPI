@@ -341,6 +341,7 @@ def _run_bootstrap(settings: Settings | None = None, *, force: bool = False) -> 
                     _write_status(
                         config, status="running", stage="historical_ingestion",
                         current_reference=reference, failed=len(failures),
+                        failures=failures,
                         message=f"Falha em {reference}; continuando as demais competências.",
                     )
 
