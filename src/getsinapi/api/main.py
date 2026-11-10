@@ -689,13 +689,14 @@ def export_catalog(
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": "attachment; filename=get-sinapi-catalogo.xlsx"})
     if format == "pdf":
+        from xml.sax.saxutils import escape
+
         from reportlab.lib import colors
         from reportlab.lib.enums import TA_LEFT
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
         from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-        from xml.sax.saxutils import escape
         buffer = io.BytesIO()
         document = SimpleDocTemplate(buffer, pagesize=landscape(A4),
             rightMargin=10*mm, leftMargin=10*mm, topMargin=10*mm, bottomMargin=10*mm)
