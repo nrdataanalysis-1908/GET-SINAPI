@@ -581,7 +581,7 @@ def catalog_advanced(
         params.append(uf.upper())
     if search:
         term = "%" + _escape_like(search.strip()) + "%"
-        clauses.append("(code LIKE ? ESCAPE '\\\\' OR description LIKE ? ESCAPE '\\\\' OR composition_code LIKE ? ESCAPE '\\\\' OR source_file LIKE ? ESCAPE '\\\\')")
+        clauses.append("(code LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' OR composition_code LIKE ? ESCAPE '\\' OR source_file LIKE ? ESCAPE '\\')")
         params.extend((term, term, term, term))
     if min_value is not None:
         clauses.append("CAST(REPLACE(value, ',', '.') AS REAL) >= ?")
