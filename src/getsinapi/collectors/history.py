@@ -141,8 +141,17 @@ def discover_historical_xlsx_catalog(
     finally:
         response.close()
 
-    if not catalog:
-        catalog = _from_sharepoint(config, session=session)
+    # Consolida as duas superfícies oficiais para reduzir o risco de um índice
+    # HTML parcialmente carregado ocultar competências históricas.
+    try:
+        catalog.update(_from_sharepoint(config, session=session))
+    except CaixaDownloadError:
+        if not catalog:
+            raise
+        log.warning(
+            "Índice SharePoint indisponível; mantendo os links encontrados no catálogo HTML. "
+            "A auditoria de cobertura deverá apontar eventuais lacunas."
+        )
     if not catalog:
         raise CaixaDownloadError(
             "Nenhuma competência XLSX unificada foi encontrada no catálogo oficial. "
