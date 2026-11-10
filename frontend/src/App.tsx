@@ -64,13 +64,13 @@ function App() {
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="brand-mark"><Activity size={23} /></div>
-          <div><span className="brand-name">GET-SINAPI</span><span className="brand-subtitle">NR DATA ANALYSIS</span></div>
+          <div><span className="brand-name">GET-SINAPI</span><span className="brand-subtitle">NR TECH</span></div>
         </div>
         <div className="workspace-label">CATÁLOGO OFICIAL</div>
         <div className="catalog-sidebar-copy">Consulta unificada dos dados publicados pela CAIXA.</div>
         <div className="sidebar-bottom">
           <div className="sidebar-status"><span className={apiOnline ? "status-dot" : "status-dot offline-dot"} /><span>{apiOnline ? "Serviço conectado" : "Aguardando conexão"}</span></div>
-          <div className="sidebar-version">GET-SINAPI <span>v0.1.0</span></div>
+          <div className="sidebar-version">GET-SINAPI <span>v2.0.0</span></div>
         </div>
       </aside>
       <main className="main-content">
@@ -80,7 +80,7 @@ function App() {
         </header>
         <section className="page-heading catalog-heading">
           <div>
-            <div className="eyebrow">NR DATA ANALYSIS / BASE PÚBLICA</div>
+            <div className="eyebrow">NR TECH / BASE PÚBLICA</div>
             <h1>Catálogo SINAPI</h1>
             <p>Insumos, composições e componentes em uma única listagem paginada.</p>
           </div>
