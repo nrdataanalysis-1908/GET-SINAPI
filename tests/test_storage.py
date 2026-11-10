@@ -186,3 +186,51 @@ def test_initialize_database_migrates_existing_component_items_table(tmp_path):
         assert "status" in columns
     finally:
         database.close()
+
+
+
+def test_existing_natural_key_index_skips_repeated_full_table_audit(tmp_path):
+    from getsinapi.storage.sqlite import _ensure_schema, connect
+
+    database_path = tmp_path / "optimized.sqlite3"
+    with connect(database_path) as connection:
+        _ensure_schema(connection)
+
+    statements = []
+    with connect(database_path) as connection:
+        connection.set_trace_callback(statements.append)
+        _ensure_schema(connection)
+
+    assert not any("GROUP BY reference, code, uf" in sql for sql in statements)
+
+
+def test_duplicate_price_natural_key_is_rejected_by_sqlite_without_partial_commit(tmp_path):
+    processed = tmp_path / "data" / "processed"
+    prepare_reference(processed, "2026-09", "002")
+    folder = processed / "2026-09"
+    price_path = folder / "input_prices.jsonl"
+    original = price_path.read_text(encoding="utf-8")
+    price_path.write_text(original + original, encoding="utf-8")
+
+    manifest_path = folder / "normalization-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload = price_path.read_bytes()
+    price_artifact = next(
+        item for item in manifest["artifacts"] if item["file"] == "input_prices.jsonl"
+    )
+    price_artifact["records"] = 2
+    price_artifact["size_bytes"] = len(payload)
+    price_artifact["sha256"] = hashlib.sha256(payload).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(sqlite3.IntegrityError):
+        load_silver_reference(processed, reference="2026-09")
+
+    database_path = tmp_path / "data" / "getsinapi.sqlite3"
+    if database_path.exists():
+        database = sqlite3.connect(database_path)
+        try:
+            assert database.execute("SELECT COUNT(*) FROM input_prices").fetchone()[0] == 0
+            assert database.execute("SELECT COUNT(*) FROM source_references").fetchone()[0] == 0
+        finally:
+            database.close()
