@@ -7,14 +7,13 @@ não devem ser declarados como cobertos por este coletor.
 from __future__ import annotations
 
 import logging
-import re
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
 from getsinapi.collectors.caixa import (
-    DOWNLOADS_PAGE_URL,
     DOWNLOAD_LINK_PATTERN,
+    DOWNLOADS_PAGE_URL,
     CaixaDownloadError,
     _http_get,
 )
