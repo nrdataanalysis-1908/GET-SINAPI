@@ -62,3 +62,40 @@ def test_historical_catalog_falls_back_to_sharepoint_when_html_is_unavailable(
         http_timeout=2, http_max_retries=0, http_backoff_seconds=0,
     )
     assert history.discover_historical_xlsx_catalog(settings=settings) == expected
+
+
+def test_historical_catalog_rejects_unverified_partial_inventory(tmp_path, monkeypatch):
+    class AvailableHtmlResponse:
+        status_code = 200
+        text = """
+        <a href="/Downloads/SINAPI-2025-01-formato-xlsx.zip">Janeiro 2025</a>
+        """
+
+        def close(self):
+            pass
+
+    def fail_sharepoint(*args, **kwargs):
+        raise history.CaixaDownloadError("SharePoint indisponível")
+
+    monkeypatch.setattr(
+        history, "_http_get", lambda *args, **kwargs: AvailableHtmlResponse()
+    )
+    monkeypatch.setattr(history, "_from_sharepoint", fail_sharepoint)
+
+    settings = history.Settings(
+        environment="test",
+        log_level="INFO",
+        data_dir=tmp_path / "data",
+        raw_dir=tmp_path / "data/raw",
+        staging_dir=tmp_path / "data/staging",
+        processed_dir=tmp_path / "data/processed",
+        manifest_dir=tmp_path / "data/manifests",
+        http_timeout=2,
+        http_max_retries=0,
+        http_backoff_seconds=0,
+    )
+
+    import pytest
+
+    with pytest.raises(history.CaixaDownloadError, match="inventário histórico"):
+        history.discover_historical_xlsx_catalog(settings=settings)
