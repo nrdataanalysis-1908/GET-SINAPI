@@ -11,7 +11,7 @@ import json
 import re
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -92,6 +92,8 @@ def connect(database_path: str | Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
+    connection.execute("PRAGMA synchronous = NORMAL")
+    connection.execute("PRAGMA temp_store = MEMORY")
     return connection
 
 
@@ -137,10 +139,10 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
+    """Lê JSONL em fluxo, sem materializar a competência inteira na memória."""
     if not path.is_file():
         raise FileNotFoundError(f"Artefato Silver não encontrado: {path}")
-    records: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as stream:
         for line_number, line in enumerate(stream, start=1):
             if not line.strip():
@@ -151,8 +153,12 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"JSONL inválido em {path.name}, linha {line_number}.") from exc
             if not isinstance(record, dict):
                 raise TypeError(f"Registro JSONL deve ser objeto: {path.name}:{line_number}.")
-            records.append(record)
-    return records
+            yield record
+
+
+def _mapped_rows(path: Path, mapper):
+    for record in _iter_jsonl(path):
+        yield mapper(record)
 
 
 def load_silver_reference(
@@ -189,7 +195,7 @@ def load_silver_reference(
     if set(metadata) != expected_files or len(metadata) != len(artifacts):
         raise ValueError("Inventário de artefatos Silver incompleto ou inconsistente.")
 
-    collections: dict[str, list[dict[str, Any]]] = {}
+    artifact_paths: dict[str, Path] = {}
     for filename in sorted(expected_files):
         path = base / filename
         artifact = metadata[filename]
@@ -199,37 +205,33 @@ def load_silver_reference(
             raise ValueError(f"Tamanho divergente no artefato Silver: {filename}.")
         if _sha256_file(path) != artifact.get("sha256"):
             raise ValueError(f"SHA-256 divergente no artefato Silver: {filename}.")
-        records = _read_jsonl(path)
-        if len(records) != artifact.get("records"):
-            raise ValueError(f"Quantidade de registros divergente no artefato Silver: {filename}.")
-        collections[filename] = records
+        artifact_paths[filename] = path
 
-    prices = collections["input_prices.jsonl"]
-    compositions = collections["compositions.jsonl"]
-    items = collections["composition_items.jsonl"]
-    for collection in (prices, compositions, items):
-        if any(record.get("reference") != reference for record in collection):
-            raise ValueError("Há registros com competência divergente nos artefatos Silver.")
-
-    # SQLite UNIQUE constraints treat NULL values as distinct. Validate the
-    # natural key in Python so ISE rows (regime=None) cannot duplicate.
+    # Validação em streaming: não carrega centenas de milhares de dicionários na RAM.
     seen_price_keys: set[tuple[Any, ...]] = set()
-    for row_number, record in enumerate(prices, start=1):
-        key = (
-            record.get("reference"), record.get("code"), record.get("uf"),
-            record.get("regime"), record.get("encargo_mode"), record.get("table_type"),
-        )
-        try:
-            duplicate = key in seen_price_keys
-            seen_price_keys.add(key)
-        except TypeError as exc:
-            raise ValueError(
-                f"Invalid input-price natural key at record {row_number}."
-            ) from exc
-        if duplicate:
-            raise ValueError(
-                f"duplicate input-price natural key at record {row_number}: {key!r}"
+    for filename, path in artifact_paths.items():
+        for row_number, record in enumerate(_iter_jsonl(path), start=1):
+            if record.get("reference") != reference:
+                raise ValueError("Há registros com competência divergente nos artefatos Silver.")
+            if filename != "input_prices.jsonl":
+                continue
+            key = (
+                record.get("reference"), record.get("code"), record.get("uf"),
+                record.get("regime"), record.get("encargo_mode"), record.get("table_type"),
             )
+            try:
+                duplicate = key in seen_price_keys
+                seen_price_keys.add(key)
+            except TypeError as exc:
+                raise ValueError(f"Invalid input-price natural key at record {row_number}.") from exc
+            if duplicate:
+                raise ValueError(f"duplicate input-price natural key at record {row_number}: {key!r}")
+
+    counts = {
+        "input_prices": metadata["input_prices.jsonl"]["records"],
+        "compositions": metadata["compositions.jsonl"]["records"],
+        "composition_items": metadata["composition_items.jsonl"]["records"],
+    }
 
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
@@ -252,29 +254,21 @@ def load_silver_reference(
                 reference, code, description, unit, status,
                 source_file, source_sheet, source_row
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
-                    row["reference"], row["code"], row["description"], row["unit"],
-                    row.get("status"), row["source_file"], row["source_sheet"],
-                    row["source_row"],
-                )
-                for row in compositions
-            ],
+            _mapped_rows(artifact_paths["compositions.jsonl"], lambda row: (
+                row["reference"], row["code"], row["description"], row["unit"],
+                row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
+            )),
         )
         connection.executemany(
             """INSERT INTO composition_items(
                 reference, composition_code, item_code, item_type, description,
                 unit, coefficient, status, source_file, source_sheet, source_row
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
-                    row["reference"], row["composition_code"], row["item_code"],
-                    row["item_type"], row["description"], row["unit"],
-                    str(row["coefficient"]), row.get("status"), row["source_file"],
-                    row["source_sheet"], row["source_row"],
-                )
-                for row in items
-            ],
+            _mapped_rows(artifact_paths["composition_items.jsonl"], lambda row: (
+                row["reference"], row["composition_code"], row["item_code"],
+                row["item_type"], row["description"], row["unit"], str(row["coefficient"]),
+                row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
+            )),
         )
         connection.executemany(
             """INSERT INTO input_prices(
@@ -282,22 +276,18 @@ def load_silver_reference(
                 table_type, price, status, price_origin, source_file,
                 source_sheet, source_row
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
-                    row["reference"], row["code"], row["description"], row["unit"],
-                    row["uf"], row.get("regime"), row["encargo_mode"],
-                    row["table_type"], row.get("price"), row["status"],
-                    row.get("price_origin"), row["source_file"], row["source_sheet"],
-                    row["source_row"],
-                )
-                for row in prices
-            ],
+            _mapped_rows(artifact_paths["input_prices.jsonl"], lambda row: (
+                row["reference"], row["code"], row["description"], row["unit"],
+                row["uf"], row.get("regime"), row["encargo_mode"], row["table_type"],
+                row.get("price"), row["status"], row.get("price_origin"),
+                row["source_file"], row["source_sheet"], row["source_row"],
+            )),
         )
 
         return {
             "reference": reference,
             "database_path": str(database_path),
-            "input_prices": len(prices),
-            "compositions": len(compositions),
-            "composition_items": len(items),
+            "input_prices": counts["input_prices"],
+            "compositions": counts["compositions"],
+            "composition_items": counts["composition_items"],
         }
