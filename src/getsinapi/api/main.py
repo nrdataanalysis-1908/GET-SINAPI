@@ -110,7 +110,7 @@ async def require_local_auth(request: Request, call_next):
 def auth_status(request: Request) -> dict[str, Any]:
     users = _read_auth().get("users", [])
     username = _session_user(request)
-    return {"configured": bool(users), "authenticated": bool(username), "username": username}
+    return {"configured": bool(users), "authenticated": bool(username), "username": username, "role": "admin" if users and username == users[0].get("username") else "user"}
 
 
 @app.post("/api/auth/setup", tags=["Autenticação"])
