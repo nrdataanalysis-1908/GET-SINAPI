@@ -154,13 +154,23 @@ def discover_historical_xlsx_catalog(
         if response is not None:
             response.close()
 
+    # A página pública de Downloads é a fonte primária. O índice SharePoint
+    # complementa o catálogo, mas não pode invalidar links oficiais já extraídos
+    # do HTML quando a API interna da CAIXA estiver indisponível ou incompatível.
     try:
         sharepoint_catalog = _from_sharepoint(config, session=session)
     except Exception as exc:
-        raise CaixaDownloadError(
-            "Não foi possível validar o inventário histórico no índice SharePoint "
-            f"oficial da CAIXA; a ingestão foi bloqueada para evitar cobertura incompleta: {exc}"
-        ) from exc
+        if not catalog:
+            raise CaixaDownloadError(
+                "Não foi possível obter competências no catálogo HTML nem validar "
+                f"o índice SharePoint oficial da CAIXA: {exc}"
+            ) from exc
+        log.warning(
+            "Índice SharePoint indisponível (%s); mantendo %s competências "
+            "obtidas diretamente da página oficial de Downloads.",
+            exc, len(catalog),
+        )
+        sharepoint_catalog = {}
 
     catalog.update(sharepoint_catalog)
     if not catalog:
