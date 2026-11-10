@@ -190,7 +190,7 @@ A stack acima representa tecnologias incorporadas ou previstas na arquitetura. A
 | Launcher desktop Windows e empacotamento PyInstaller | Build automatizado; execução final em homologação |
 | Homologação do download automático no catálogo CAIXA | Pendente de validação externa |
 | PostgreSQL, mapas e análises adicionais | Fora do escopo local atual / planejado |
-| Login local PBKDF2 e exportação CSV/JSON | Implementação inicial na V2 |\n| Exportação XLSX/PDF, gestão de usuários e auditoria visual SHA-256 | Planejado |
+| Login local PBKDF2, gestão de contas e exportação CSV/XLSX/PDF/JSON | Implementação inicial na V2 |\n| Auditoria visual SHA-256 e validação operacional ampliada | Planejado |
 
 ## Licença e uso dos dados
 
@@ -239,4 +239,4 @@ npm run dev
 
 Abra `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local na porta 8000. Para consultas com dados, configure o banco SQLite por `GETSINAPI_DATABASE_PATH` ou execute a carga Silver antes de abrir o painel.
 
-> Limites atuais: o armazenamento é SQLite local; login local e exportações CSV/JSON foram incorporados à V2. Ainda não há exportação XLSX/PDF, gestão de usuários pela interface, mapas geográficos, sincronização PostgreSQL nem ingestão integral de todas as competências históricas. A atualização automática depende de homologação do acesso real aos arquivos publicados pela CAIXA.
+> Limites atuais: o armazenamento é SQLite local; o login PBKDF2, a gestão local de contas e as exportações CSV/XLSX/PDF/JSON estão na implementação inicial da V2. Ainda não há mapas geográficos, sincronização PostgreSQL nem ingestão integral de todas as competências históricas. A atualização automática depende de homologação do acesso real aos arquivos publicados pela CAIXA.
