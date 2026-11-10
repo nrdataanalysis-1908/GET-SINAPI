@@ -64,7 +64,7 @@ def test_historical_catalog_falls_back_to_sharepoint_when_html_is_unavailable(
     assert history.discover_historical_xlsx_catalog(settings=settings) == expected
 
 
-def test_historical_catalog_rejects_unverified_partial_inventory(tmp_path, monkeypatch):
+def test_historical_catalog_keeps_official_html_when_sharepoint_fails(tmp_path, monkeypatch):
     class AvailableHtmlResponse:
         status_code = 200
         text = """
@@ -95,7 +95,7 @@ def test_historical_catalog_rejects_unverified_partial_inventory(tmp_path, monke
         http_backoff_seconds=0,
     )
 
-    import pytest
+    catalog = history.discover_historical_xlsx_catalog(settings=settings)
 
-    with pytest.raises(history.CaixaDownloadError, match="inventário histórico"):
-        history.discover_historical_xlsx_catalog(settings=settings)
+    assert list(catalog) == ["2025-01"]
+    assert catalog["2025-01"].startswith("https://www.caixa.gov.br/")
