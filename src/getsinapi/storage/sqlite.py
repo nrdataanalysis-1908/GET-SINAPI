@@ -10,8 +10,8 @@ import hashlib
 import json
 import re
 import sqlite3
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 SCHEMA = """
