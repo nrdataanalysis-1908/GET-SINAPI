@@ -1,9 +1,15 @@
+from importlib.metadata import version as distribution_version
+
 from fastapi.testclient import TestClient
 
 from getsinapi import __version__
 from getsinapi.api.main import app
 
 client = TestClient(app)
+
+
+def test_installed_distribution_version_matches_runtime_version():
+    assert distribution_version("get-sinapi") == __version__
 
 
 def test_health_endpoint_reports_api_availability_only():
