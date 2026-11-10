@@ -22,6 +22,7 @@ def test_historical_catalog_collects_all_unified_monthly_xlsx(tmp_path, monkeypa
             pass
 
     monkeypatch.setattr(history, "_http_get", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr(history, "_from_sharepoint", lambda *args, **kwargs: {})
     catalog = history.discover_historical_xlsx_catalog(
         settings=history.Settings(
             environment="test",
