@@ -29,6 +29,13 @@ DISCOVERY_CACHE_TTL_SECONDS = 6 * 60 * 60
 REQUIRED_SHEETS = {"ISD", "ICD", "ISE", "Analítico"}
 
 
+def _month_shift(year: int, month: int, delta: int) -> tuple[int, int]:
+    """Desloca uma competência mensal sem depender de datas ou fuso horário."""
+    absolute_month = year * 12 + (month - 1) + delta
+    shifted_year, zero_based_month = divmod(absolute_month, 12)
+    return shifted_year, zero_based_month + 1
+
+
 def _database_path(settings: Settings) -> Path:
     return settings.data_dir / "getsinapi.sqlite3"
 
