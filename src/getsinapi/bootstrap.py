@@ -59,10 +59,22 @@ def database_is_valid(path: Path) -> bool:
 
 
 def _loaded_and_complete(database: Path, reference: str) -> bool:
-    if not database_is_valid(database):
+    """Verifica a presença dos dados sem executar integrity_check em todo o banco.
+
+    PRAGMA integrity_check é uma varredura integral e não deve ser repetida
+    antes/depois de cada competência durante a ingestão histórica.
+    A integridade completa é verificada uma vez no início/final do bootstrap.
+    """
+    if not database.is_file() or database.stat().st_size == 0:
         return False
     try:
         with sqlite3.connect(f"file:{database}?mode=ro", uri=True, timeout=5) as db:
+            tables = {row[0] for row in db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )}
+            required = {"source_references", "input_prices", "compositions", "composition_items"}
+            if not required <= tables:
+                return False
             source = db.execute(
                 "SELECT 1 FROM source_references WHERE reference=?", (reference,)
             ).fetchone()
