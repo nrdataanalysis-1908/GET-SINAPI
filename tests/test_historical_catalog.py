@@ -23,6 +23,7 @@ def test_historical_catalog_collects_all_unified_monthly_xlsx(tmp_path, monkeypa
 
     monkeypatch.setattr(history, "_http_get", lambda *args, **kwargs: FakeResponse())
     monkeypatch.setattr(history, "_from_sharepoint", lambda *args, **kwargs: {})
+    monkeypatch.setattr(history, "_from_monthly_urls", lambda *args, **kwargs: {})
     catalog = history.discover_historical_xlsx_catalog(
         settings=history.Settings(
             environment="test",
@@ -54,6 +55,7 @@ def test_historical_catalog_falls_back_to_sharepoint_when_html_is_unavailable(
     expected = {"2025-01": "https://www.caixa.gov.br/Downloads/SINAPI-2025-01-formato-xlsx.zip"}
     monkeypatch.setattr(history, "_http_get", lambda *args, **kwargs: UnavailableResponse())
     monkeypatch.setattr(history, "_from_sharepoint", lambda *args, **kwargs: expected)
+    monkeypatch.setattr(history, "_from_monthly_urls", lambda *args, **kwargs: {})
 
     settings = history.Settings(
         environment="test", log_level="INFO", data_dir=tmp_path / "data",
@@ -81,6 +83,7 @@ def test_historical_catalog_keeps_official_html_when_sharepoint_fails(tmp_path, 
         history, "_http_get", lambda *args, **kwargs: AvailableHtmlResponse()
     )
     monkeypatch.setattr(history, "_from_sharepoint", fail_sharepoint)
+    monkeypatch.setattr(history, "_from_monthly_urls", lambda *args, **kwargs: {})
 
     settings = history.Settings(
         environment="test",
@@ -99,3 +102,48 @@ def test_historical_catalog_keeps_official_html_when_sharepoint_fails(tmp_path, 
 
     assert list(catalog) == ["2025-01"]
     assert catalog["2025-01"].startswith("https://www.caixa.gov.br/")
+
+
+
+def test_monthly_url_discovery_probes_each_month_without_downloading_archives(
+    tmp_path, monkeypatch
+):
+    class FixedDateTime:
+        @staticmethod
+        def now(tz):
+            from datetime import datetime
+
+            return datetime(2025, 3, 10, tzinfo=tz)
+
+    class HeadResponse:
+        def __init__(self, status_code, content_type="application/zip", content_length="123"):
+            self.status_code = status_code
+            self.headers = {"Content-Type": content_type, "Content-Length": content_length}
+
+        def close(self):
+            pass
+
+    calls = []
+
+    def fake_head(url, **kwargs):
+        calls.append(url)
+        if "2025-01-" in url:
+            return HeadResponse(200)
+        if "2025-02-" in url:
+            return HeadResponse(200, "text/html")
+        return HeadResponse(404)
+
+    monkeypatch.setattr(history, "datetime", FixedDateTime)
+    monkeypatch.setattr(history, "_http_head", fake_head)
+
+    settings = history.Settings(
+        environment="test", log_level="INFO", data_dir=tmp_path / "data",
+        raw_dir=tmp_path / "data/raw", staging_dir=tmp_path / "data/staging",
+        processed_dir=tmp_path / "data/processed", manifest_dir=tmp_path / "data/manifests",
+        http_timeout=2, http_max_retries=0, http_backoff_seconds=0,
+    )
+    catalog = history._from_monthly_urls(settings)
+
+    assert list(catalog) == ["2025-01"]
+    assert len(calls) == 3
+    assert all("SINAPI-" in url and "formato-xlsx.zip" in url for url in calls)
