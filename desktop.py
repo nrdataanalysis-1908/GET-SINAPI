@@ -63,7 +63,7 @@ def _copy_database_safely(source: Path, target: Path) -> bool:
 
 def configure_storage() -> None:
     profile = Path(os.environ.get("USERPROFILE", Path.home()))
-    base = Path(os.environ.get("LOCALAPPDATA", profile)) / "NRTech" / "GET-SINAPI-V2"
+    base = Path(os.environ.get("LOCALAPPDATA", profile)) / "NRTech" / "GET-SINAPI-V3"
     data = base / "data"
     data.mkdir(parents=True, exist_ok=True)
     database = data / "getsinapi.sqlite3"
