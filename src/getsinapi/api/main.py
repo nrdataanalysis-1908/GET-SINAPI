@@ -132,7 +132,7 @@ def auth_setup(payload: AuthRequest, response: Response) -> dict[str, str]:
         temporary.write_text(json.dumps({"users": [user]}, ensure_ascii=False, indent=2), encoding="utf-8")
         temporary.replace(path)
         _new_session(username, response)
-    return {"status": "configured", "username": username}
+    return {"status": "configured", "username": username, "role": "admin"}
 
 
 @app.post("/api/auth/login", tags=["Autenticação"])
@@ -150,7 +150,7 @@ def auth_login(payload: AuthRequest, response: Response) -> dict[str, str]:
     if not secrets.compare_digest(_password_digest(payload.password, salt), expected):
         raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
     _new_session(username, response)
-    return {"status": "authenticated", "username": username}
+    return {"status": "authenticated", "username": username, "role": "admin" if users and username == users[0].get("username") else "user"}
 
 
 @app.post("/api/auth/logout", tags=["Autenticação"])
