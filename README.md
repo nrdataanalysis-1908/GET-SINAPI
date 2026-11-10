@@ -77,7 +77,7 @@ O objetivo é oferecer uma fundação confiável para análises de custos, compo
 </tr>
 </table>
 
-> **Transparência de implementação:** o repositório já contém coleta e validação de pacotes, extração segura, catálogo XLSX, parsers iniciais de preços e composições, normalização Silver, persistência histórica SQLite, API FastAPI, consultas paginadas, agregações analíticas, cálculo recursivo e montagem de orçamentos. A aplicação React/Vite e o launcher Windows estão em validação. O download ao vivo pela CAIXA ainda exige homologação com o catálogo e o pacote oficiais. PostgreSQL/Supabase, autenticação, mapas analíticos, exportações e observabilidade ampliada permanecem no roadmap.
+> **Transparência de implementação:** a branch `v2/development` passou a incorporar uma interface modular com painel executivo, catálogo com filtros combináveis, explorador de composições, comparador de preços por UF, cesta de orçamento, histórico das competências já carregadas, exportação CSV/JSON e autenticação local com hash PBKDF2. Esses módulos utilizam os dados persistidos no SQLite e os serviços já existentes na API. Isso não significa que todo o acervo histórico da CAIXA esteja coletado: o histórico exibido corresponde somente às competências efetivamente carregadas. A descoberta e homologação do download oficial, exportação Excel/PDF, gestão de múltiplas contas, auditoria criptográfica em interface e cobertura histórica integral ainda exigem implementação e validação.
 
 ## Arquitetura de dados
 
@@ -186,11 +186,11 @@ A stack acima representa tecnologias incorporadas ou previstas na arquitetura. A
 | Parsers de preços ISD/ICD/ISE e relatório Analítico | Implementação inicial |
 | Motor de cálculo recursivo de composições e orçamento | Implementação inicial |\n| Persistência histórica SQLite e carga idempotente | Implementação inicial |
 | API FastAPI de consulta, agregações e orçamento | Implementação inicial |
-| Aplicação React/Vite com pesquisa e painéis analíticos | Implementação inicial |
-| Launcher desktop Windows e empacotamento PyInstaller | Em validação |
+| Aplicação React/Vite modular (dashboard, catálogo, composição, comparação e orçamento) | Implementação inicial na V2 |
+| Launcher desktop Windows e empacotamento PyInstaller | Build automatizado; execução final em homologação |
 | Homologação do download automático no catálogo CAIXA | Pendente de validação externa |
-| Migração PostgreSQL/Supabase e histórico analítico avançado | Planejado |
-| Autenticação, mapas, exportações e observabilidade ampliada | Planejado |
+| PostgreSQL, mapas e análises adicionais | Fora do escopo local atual / planejado |
+| Login local PBKDF2 e exportação CSV/JSON | Implementação inicial na V2 |\n| Exportação XLSX/PDF, gestão de usuários e auditoria visual SHA-256 | Planejado |
 
 ## Licença e uso dos dados
 
@@ -203,7 +203,7 @@ A licença do software não altera os direitos, termos de uso ou condições apl
 <div align="center">
 
 **GET-SINAPI**  
-NR Data Analysis · Data Engineering
+NR TECH · Data Engineering
 
 *Precisão na origem. Consistência no processamento. Confiança na consulta.*
 
@@ -239,4 +239,4 @@ npm run dev
 
 Abra `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local na porta 8000. Para consultas com dados, configure o banco SQLite por `GETSINAPI_DATABASE_PATH` ou execute a carga Silver antes de abrir o painel.
 
-> Limites atuais: o armazenamento de produção do preview é SQLite local; autenticação, mapas geográficos, exportações e sincronização PostgreSQL/Supabase ainda não estão implementados. A atualização automática depende de homologação do acesso real aos arquivos publicados pela CAIXA.
+> Limites atuais: o armazenamento é SQLite local; login local e exportações CSV/JSON foram incorporados à V2. Ainda não há exportação XLSX/PDF, gestão de usuários pela interface, mapas geográficos, sincronização PostgreSQL nem ingestão integral de todas as competências históricas. A atualização automática depende de homologação do acesso real aos arquivos publicados pela CAIXA.
