@@ -338,7 +338,7 @@ def _run_bootstrap(settings: Settings | None = None, *, force: bool = False) -> 
         if failures:
             result["status"] = "partial"
         _write_status(
-            config, **result, stage="complete" if not failures else "partial",
+            config, **result, stage="partial" if legacy_pending or failures else "complete",
             percent=100, current_reference=None,
             message=(
                 "Pacotes XLSX unificados processados. O histórico legado até 2024 "
