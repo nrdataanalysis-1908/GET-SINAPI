@@ -307,24 +307,31 @@ def load_silver_reference(
                 progress_callback=progress_callback,
             ),
         )
-        connection.executemany(
-            """INSERT INTO input_prices(
-                reference, code, description, unit, uf, regime, encargo_mode,
-                table_type, price, status, price_origin, source_file,
-                source_sheet, source_row
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            _mapped_rows(
-                artifact_paths["input_prices.jsonl"],
-                lambda row: (
-                    row["reference"], row["code"], row["description"], row["unit"],
-                    row["uf"], row.get("regime"), row["encargo_mode"], row["table_type"],
-                    row.get("price"), row["status"], row.get("price_origin"),
-                    row["source_file"], row["source_sheet"], row["source_row"],
+        try:
+            connection.executemany(
+                """INSERT INTO input_prices(
+                    reference, code, description, unit, uf, regime, encargo_mode,
+                    table_type, price, status, price_origin, source_file,
+                    source_sheet, source_row
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                _mapped_rows(
+                    artifact_paths["input_prices.jsonl"],
+                    lambda row: (
+                        row["reference"], row["code"], row["description"], row["unit"],
+                        row["uf"], row.get("regime"), row["encargo_mode"], row["table_type"],
+                        row.get("price"), row["status"], row.get("price_origin"),
+                        row["source_file"], row["source_sheet"], row["source_row"],
+                    ),
+                    phase="input_prices",
+                    progress_callback=progress_callback,
                 ),
-                phase="input_prices",
-                progress_callback=progress_callback,
-            ),
-        )
+            )
+        except sqlite3.IntegrityError as exc:
+            if "uq_input_prices_natural_key" in str(exc):
+                raise ValueError(
+                    "duplicate input-price natural key rejected by SQLite."
+                ) from exc
+            raise
 
         return {
             "reference": reference,
