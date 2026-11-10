@@ -174,9 +174,10 @@ def discover_historical_xlsx_catalog(
 ) -> dict[str, str]:
     """Retorna o inventário consolidado das competências XLSX publicadas pela CAIXA.
 
-    O catálogo HTML e o índice SharePoint são consultados como superfícies
-    complementares. Se o índice secundário falhar, a descoberta é considerada
-    inconclusiva: não se inicia uma ingestão que possa aparentar cobertura integral.
+    O catálogo HTML, o índice SharePoint e as URLs mensais oficiais são
+    consultados como superfícies complementares. O inventário final inclui
+    somente competências encontradas por pelo menos uma fonte oficial; o pacote
+    ZIP completo é validado durante o download antes de qualquer carga.
     """
     config = settings or Settings.from_env()
     response = None
@@ -201,9 +202,8 @@ def discover_historical_xlsx_catalog(
             )
             catalog = {}
     except Exception as exc:
-        raise CaixaDownloadError(
-            f"Falha ao consultar o catálogo HTML oficial da CAIXA: {exc}"
-        ) from exc
+        log.warning("Falha ao consultar o catálogo HTML oficial da CAIXA: %s", exc)
+        catalog = {}
     finally:
         if response is not None:
             response.close()
@@ -214,14 +214,9 @@ def discover_historical_xlsx_catalog(
     try:
         sharepoint_catalog = _from_sharepoint(config, session=session)
     except Exception as exc:
-        if not catalog:
-            raise CaixaDownloadError(
-                "Não foi possível obter competências no catálogo HTML nem validar "
-                f"o índice SharePoint oficial da CAIXA: {exc}"
-            ) from exc
         log.warning(
-            "Índice SharePoint indisponível (%s); mantendo %s competências "
-            "obtidas diretamente da página oficial de Downloads.",
+            "Índice SharePoint indisponível (%s); prosseguindo com sondagem "
+            "das URLs mensais oficiais. Catálogo HTML: %s competências.",
             exc, len(catalog),
         )
         sharepoint_catalog = {}
