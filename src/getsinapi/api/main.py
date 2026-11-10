@@ -163,6 +163,43 @@ def auth_logout(request: Request, response: Response) -> dict[str, str]:
     return {"status": "logged_out"}
 
 
+
+
+@app.get("/api/auth/users", tags=["Autenticação"])
+def auth_users(request: Request) -> dict[str, Any]:
+    users = _read_auth().get("users", [])
+    current = _session_user(request)
+    if not users or current != users[0].get("username"):
+        raise HTTPException(status_code=403, detail="Somente o administrador local pode gerenciar usuários.")
+    return {"users": [{"username": item.get("username"), "created_at": item.get("created_at"),
+                       "role": "admin" if index == 0 else "user"}
+                      for index, item in enumerate(users)]}
+
+
+@app.post("/api/auth/users", tags=["Autenticação"])
+def auth_add_user(payload: AuthRequest, request: Request) -> dict[str, str]:
+    with _AUTH_LOCK:
+        current = _session_user(request)
+        path = _auth_path()
+        data = _read_auth()
+        users = data.get("users", [])
+        if not users or current != users[0].get("username"):
+            raise HTTPException(status_code=403, detail="Somente o administrador local pode criar usuários.")
+        username = payload.username.strip().lower()
+        if not username:
+            raise HTTPException(status_code=422, detail="Informe um usuário válido.")
+        if any(item.get("username") == username for item in users):
+            raise HTTPException(status_code=409, detail="Este usuário já está cadastrado.")
+        salt = secrets.token_bytes(24)
+        users.append({"username": username, "salt": salt.hex(),
+                      "password_hash": _password_digest(payload.password, salt),
+                      "created_at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(path)
+    return {"status": "created", "username": username}
+
+
 class BudgetLineRequest(BaseModel):
     code: str = Field(min_length=1, max_length=40)
     item_type: str = Field(pattern="^(INSUMO|COMPOSICAO)$")
@@ -610,7 +647,7 @@ def catalog_advanced(
 
 @app.get("/api/catalog/export", tags=["Relatórios"], summary="Exporta o catálogo filtrado em CSV ou JSON")
 def export_catalog(
-    format: str = Query("csv", pattern="^(csv|json)$"),
+    format: str = Query("csv", pattern="^(csv|json|xlsx|pdf)$"),
     search: str | None = Query(None, min_length=2, max_length=120),
     reference: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
     uf: str | None = Query(None, min_length=2, max_length=2, pattern="^[A-Za-z]{2}$"),
@@ -634,6 +671,61 @@ def export_catalog(
         payload = json.dumps({"total": len(rows), "items": rows}, ensure_ascii=False, indent=2).encode("utf-8")
         return StreamingResponse(iter([payload]), media_type="application/json",
             headers={"Content-Disposition": "attachment; filename=get-sinapi-catalogo.json"})
+    if format == "xlsx":
+        from openpyxl import Workbook
+        workbook = Workbook(write_only=True)
+        sheet = workbook.create_sheet("Catálogo SINAPI")
+        if rows:
+            sheet.append(list(rows[0].keys()))
+            for item in rows:
+                sheet.append([item.get(key) for key in rows[0].keys()])
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return StreamingResponse(iter([buffer.getvalue()]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=get-sinapi-catalogo.xlsx"})
+    if format == "pdf":
+        from xml.sax.saxutils import escape
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_LEFT
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        buffer = io.BytesIO()
+        document = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+            rightMargin=10*mm, leftMargin=10*mm, topMargin=10*mm, bottomMargin=10*mm)
+        styles = getSampleStyleSheet()
+        small = ParagraphStyle("Small", parent=styles["BodyText"], fontSize=6, leading=7, alignment=TA_LEFT)
+        story = [Paragraph("GET-SINAPI | Relatório de consulta", styles["Title"]),
+                 Paragraph("NR TECH · Fonte: CAIXA Econômica Federal · SINAPI", styles["Normal"]),
+                 Paragraph("Registros encontrados: " + str(len(rows)), styles["Normal"]),
+                 Spacer(1, 5*mm)]
+        columns = ["Competência", "Tipo", "Código", "Descrição", "UF", "Valor / coef.", "Arquivo"]
+        matrix = [columns]
+        for item in rows[:150]:
+            matrix.append([
+                str(item.get("reference") or ""), str(item.get("record_type") or ""),
+                str(item.get("code") or ""), Paragraph(escape(str(item.get("description") or "")), small),
+                str(item.get("uf") or "Nacional"), str(item.get("value") or ""),
+                Paragraph(escape(str(item.get("source_file") or "")), small)
+            ])
+        if len(rows) > 150:
+            story.append(Paragraph("Prévia limitada aos primeiros 150 registros. CSV, XLSX e JSON contêm a extração integral.", styles["Italic"]))
+        table = Table(matrix, repeatRows=1, colWidths=[22*mm,22*mm,20*mm,95*mm,18*mm,24*mm,60*mm])
+        table.setStyle(TableStyle([
+            ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#10243A")),
+            ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+            ("GRID",(0,0),(-1,-1),0.25,colors.HexColor("#AAB8C5")),
+            ("FONTSIZE",(0,0),(-1,0),7),("FONTSIZE",(0,1),(-1,-1),6),
+            ("VALIGN",(0,0),(-1,-1),"TOP"),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white,colors.HexColor("#EEF4F8")]),
+            ("LEFTPADDING",(0,0),(-1,-1),3),("RIGHTPADDING",(0,0),(-1,-1),3),
+            ("TOPPADDING",(0,0),(-1,-1),3),("BOTTOMPADDING",(0,0),(-1,-1),3)
+        ]))
+        story.append(table)
+        document.build(story)
+        return StreamingResponse(iter([buffer.getvalue()]), media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=get-sinapi-relatorio.pdf"})
     output = io.StringIO(newline="")
     if rows:
         writer = csv.DictWriter(output, fieldnames=list(rows[0].keys()), delimiter=";")
