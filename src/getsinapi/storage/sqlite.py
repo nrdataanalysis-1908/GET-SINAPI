@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -163,15 +163,28 @@ def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
             yield record
 
 
-def _mapped_rows(path: Path, mapper):
+def _mapped_rows(
+    path: Path,
+    mapper,
+    *,
+    phase: str,
+    progress_callback: Callable[[str, int], None] | None = None,
+):
+    processed = 0
     for record in _iter_jsonl(path):
         yield mapper(record)
+        processed += 1
+        if progress_callback is not None and processed % 10_000 == 0:
+            progress_callback(phase, processed)
+    if progress_callback is not None and processed % 10_000:
+        progress_callback(phase, processed)
 
 
 def load_silver_reference(
     processed_dir: str | Path,
     *,
     reference: str,
+    progress_callback: Callable[[str, int], None] | None = None,
 ) -> dict[str, int | str]:
     """Carrega uma competência em transação única; repetir a carga não duplica."""
     if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", reference):
@@ -268,21 +281,31 @@ def load_silver_reference(
                 reference, code, description, unit, status,
                 source_file, source_sheet, source_row
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            _mapped_rows(artifact_paths["compositions.jsonl"], lambda row: (
-                row["reference"], row["code"], row["description"], row["unit"],
-                row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
-            )),
+            _mapped_rows(
+                artifact_paths["compositions.jsonl"],
+                lambda row: (
+                    row["reference"], row["code"], row["description"], row["unit"],
+                    row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
+                ),
+                phase="compositions",
+                progress_callback=progress_callback,
+            ),
         )
         connection.executemany(
             """INSERT INTO composition_items(
                 reference, composition_code, item_code, item_type, description,
                 unit, coefficient, status, source_file, source_sheet, source_row
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            _mapped_rows(artifact_paths["composition_items.jsonl"], lambda row: (
-                row["reference"], row["composition_code"], row["item_code"],
-                row["item_type"], row["description"], row["unit"], str(row["coefficient"]),
-                row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
-            )),
+            _mapped_rows(
+                artifact_paths["composition_items.jsonl"],
+                lambda row: (
+                    row["reference"], row["composition_code"], row["item_code"],
+                    row["item_type"], row["description"], row["unit"], str(row["coefficient"]),
+                    row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
+                ),
+                phase="composition_items",
+                progress_callback=progress_callback,
+            ),
         )
         connection.executemany(
             """INSERT INTO input_prices(
@@ -290,12 +313,17 @@ def load_silver_reference(
                 table_type, price, status, price_origin, source_file,
                 source_sheet, source_row
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            _mapped_rows(artifact_paths["input_prices.jsonl"], lambda row: (
-                row["reference"], row["code"], row["description"], row["unit"],
-                row["uf"], row.get("regime"), row["encargo_mode"], row["table_type"],
-                row.get("price"), row["status"], row.get("price_origin"),
-                row["source_file"], row["source_sheet"], row["source_row"],
-            )),
+            _mapped_rows(
+                artifact_paths["input_prices.jsonl"],
+                lambda row: (
+                    row["reference"], row["code"], row["description"], row["unit"],
+                    row["uf"], row.get("regime"), row["encargo_mode"], row["table_type"],
+                    row.get("price"), row["status"], row.get("price_origin"),
+                    row["source_file"], row["source_sheet"], row["source_row"],
+                ),
+                phase="input_prices",
+                progress_callback=progress_callback,
+            ),
         )
 
         return {
