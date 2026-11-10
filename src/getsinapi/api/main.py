@@ -7,13 +7,17 @@ import sqlite3
 import csv
 import io
 import json
+import hashlib
+import secrets
+import threading
+import time
 from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -37,6 +41,127 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+class AuthRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=80)
+    password: str = Field(min_length=12, max_length=256)
+
+
+_AUTH_SESSIONS: dict[str, tuple[str, float]] = {}
+_AUTH_LOCK = threading.RLock()
+_AUTH_COOKIE = "getsinapi_session"
+
+
+def _auth_path() -> Path:
+    base = Path(os.getenv("GETSINAPI_DATA_DIR", _database_path().parent))
+    return base / "security" / "users.json"
+
+
+def _read_auth() -> dict[str, Any]:
+    path = _auth_path()
+    if not path.is_file():
+        return {"users": []}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {"users": []}
+    except (OSError, ValueError, TypeError):
+        return {"users": []}
+
+
+def _password_digest(password: str, salt: bytes) -> str:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 310_000).hex()
+
+
+def _new_session(username: str, response: Response) -> None:
+    token = secrets.token_urlsafe(40)
+    with _AUTH_LOCK:
+        _AUTH_SESSIONS[token] = (username, time.time() + 8 * 60 * 60)
+    response.set_cookie(_AUTH_COOKIE, token, httponly=True, samesite="strict",
+                        secure=False, max_age=8 * 60 * 60, path="/")
+
+
+def _session_user(request: Request) -> str | None:
+    token = request.cookies.get(_AUTH_COOKIE)
+    if not token:
+        return None
+    with _AUTH_LOCK:
+        session = _AUTH_SESSIONS.get(token)
+        if not session:
+            return None
+        if session[1] <= time.time():
+            _AUTH_SESSIONS.pop(token, None)
+            return None
+        return session[0]
+
+
+@app.middleware("http")
+async def require_local_auth(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/") and path not in {
+        "/api/health", "/api/auth/status", "/api/auth/setup",
+        "/api/auth/login", "/api/auth/logout"
+    }:
+        if _read_auth().get("users") and not _session_user(request):
+            return JSONResponse(status_code=401, content={"detail": "Sessão expirada ou não autenticada."})
+    return await call_next(request)
+
+
+@app.get("/api/auth/status", tags=["Autenticação"])
+def auth_status(request: Request) -> dict[str, Any]:
+    users = _read_auth().get("users", [])
+    username = _session_user(request)
+    return {"configured": bool(users), "authenticated": bool(username), "username": username}
+
+
+@app.post("/api/auth/setup", tags=["Autenticação"])
+def auth_setup(payload: AuthRequest, response: Response) -> dict[str, str]:
+    with _AUTH_LOCK:
+        path = _auth_path()
+        current = _read_auth()
+        if current.get("users"):
+            raise HTTPException(status_code=409, detail="A configuração inicial já foi concluída.")
+        username = payload.username.strip().lower()
+        if not username:
+            raise HTTPException(status_code=422, detail="Informe um usuário válido.")
+        salt = secrets.token_bytes(24)
+        user = {"username": username, "salt": salt.hex(),
+                "password_hash": _password_digest(payload.password, salt),
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps({"users": [user]}, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(path)
+        _new_session(username, response)
+    return {"status": "configured", "username": username}
+
+
+@app.post("/api/auth/login", tags=["Autenticação"])
+def auth_login(payload: AuthRequest, response: Response) -> dict[str, str]:
+    username = payload.username.strip().lower()
+    users = _read_auth().get("users", [])
+    user = next((item for item in users if item.get("username") == username), None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
+    try:
+        salt = bytes.fromhex(user["salt"])
+        expected = str(user["password_hash"])
+    except (KeyError, ValueError, TypeError):
+        raise HTTPException(status_code=500, detail="Cadastro local de autenticação inválido.")
+    if not secrets.compare_digest(_password_digest(payload.password, salt), expected):
+        raise HTTPException(status_code=401, detail="Usuário ou senha inválidos.")
+    _new_session(username, response)
+    return {"status": "authenticated", "username": username}
+
+
+@app.post("/api/auth/logout", tags=["Autenticação"])
+def auth_logout(request: Request, response: Response) -> dict[str, str]:
+    token = request.cookies.get(_AUTH_COOKIE)
+    if token:
+        with _AUTH_LOCK:
+            _AUTH_SESSIONS.pop(token, None)
+    response.delete_cookie(_AUTH_COOKIE, path="/")
+    return {"status": "logged_out"}
+
 
 class BudgetLineRequest(BaseModel):
     code: str = Field(min_length=1, max_length=40)
