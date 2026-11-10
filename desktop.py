@@ -237,10 +237,16 @@ def main() -> None:
         while True:
             try:
                 result = run_bootstrap()
-                if result.get("status") in {"updated", "up_to_date"}:
+                if result.get("status") in {"updated", "up_to_date", "complete"}:
                     retry_delay = 30
                     # Verificação periódica: novas competências são incorporadas
                     # sem exigir que o usuário feche e reabra o aplicativo.
+                    time.sleep(6 * 60 * 60)
+                    continue
+                if result.get("status") == "partial" and not result.get("failed"):
+                    # A cobertura legada é explicitamente reportada como pendência;
+                    # não repetir toda a descoberta a cada 30 segundos.
+                    retry_delay = 30
                     time.sleep(6 * 60 * 60)
                     continue
                 if result.get("status") == "already_running":
