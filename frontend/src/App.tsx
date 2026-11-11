@@ -33,7 +33,33 @@ const loadCatalog=useCallback(async(offset=0)=>{setBusy(true);setError("");try{c
 useEffect(()=>{void api<{configured:boolean;authenticated:boolean;username:string|null;role:string}>("/api/auth/status").then(s=>{setAuthConfigured(s.configured);setAuthenticated(s.authenticated);setAuthUser(s.username||"");setIsAdmin(s.role==="admin");}).catch(e=>setError(e instanceof Error?e.message:"Falha na autenticação local.")).finally(()=>setAuthReady(true));},[]);
 useEffect(()=>{if(authReady&&authenticated)void loadAnalytics();},[authReady,authenticated,loadAnalytics]);
 useEffect(()=>{if(!authReady||!authenticated||a)return;const timer=window.setInterval(()=>void loadAnalytics(),5000);return()=>window.clearInterval(timer);},[authReady,authenticated,a,loadAnalytics]);
-useEffect(()=>{if(!authReady||!authenticated)return;let active=true;const refresh=async()=>{try{const r=await fetch("/bootstrap-status",{cache:"no-store"});if(r.ok){const state=await r.json();if(active){setBootstrapState(state);if((state.stage==="complete"||state.stage==="partial"||["updated","up_to_date"].includes(state.status))&&!completionHandled.current){completionHandled.current=true;void loadAnalytics();if(page==="catalog")void loadCatalog(0);}}}}}catch{if(active)setBootstrapState({status:"unavailable",message:"Estado da atualização indisponível."});}};void refresh();const timer=window.setInterval(()=>void refresh(),2500);return()=>{active=false;window.clearInterval(timer);};},[authReady,authenticated,loadAnalytics,loadCatalog,page]);
+useEffect(() => {
+  if (!authReady || !authenticated) return;
+  let active = true;
+  const refresh = async () => {
+    try {
+      const response = await fetch("/bootstrap-status", { cache: "no-store" });
+      if (!response.ok) return;
+      const state = await response.json();
+      if (!active) return;
+      setBootstrapState(state);
+      const completed = state.stage === "complete" || state.stage === "partial" || ["updated", "up_to_date"].includes(state.status);
+      if (completed && !completionHandled.current) {
+        completionHandled.current = true;
+        void loadAnalytics();
+        if (page === "catalog") void loadCatalog(0);
+      }
+    } catch {
+      if (active) setBootstrapState({ status: "unavailable", message: "Estado da atualização indisponível." });
+    }
+  };
+  void refresh();
+  const timer = window.setInterval(() => void refresh(), 2500);
+  return () => {
+    active = false;
+    window.clearInterval(timer);
+  };
+}, [authReady, authenticated, loadAnalytics, loadCatalog, page]);
 const updateDatabase=async()=>{completionHandled.current=false;setUpdateBusy(true);setError("");try{const r=await fetch("/bootstrap-retry",{method:"POST"});if(!r.ok)throw new Error("Não foi possível iniciar a atualização da base.");setBootstrapState({status:"running",stage:"starting",message:"Atualização solicitada."});}catch(e){setError(e instanceof Error?e.message:"Falha ao solicitar atualização.");}finally{setUpdateBusy(false);}};
 const submitAuth=async(e:FormEvent)=>{e.preventDefault();setAuthBusy(true);setError("");try{const route=authConfigured?"/api/auth/login":"/api/auth/setup";const result=await api<{username:string;role:string}>(route,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:authUser,password:authPassword})});setAuthConfigured(true);setAuthenticated(true);setIsAdmin(result.role==="admin");setAuthUser(result.username||authUser);setAuthPassword("");}catch(e){setError(e instanceof Error?e.message:"Não foi possível autenticar.");}finally{setAuthBusy(false);}};
 const logout=async()=>{try{await api("/api/auth/logout",{method:"POST"});}finally{setAuthenticated(false);setPage("dashboard");setA(null);}};
