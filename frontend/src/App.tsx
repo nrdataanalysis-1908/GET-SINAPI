@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Activity, Search, RefreshCw, ChevronLeft, ChevronRight, Database, LayoutDashboard, Boxes, Calculator, GitCompareArrows, History, FileText, ShieldCheck, Download, Plus, Trash2, Filter, Menu, X, LogOut, LockKeyhole, Users, ExternalLink } from "lucide-react";
+import { Activity, Search, RefreshCw, ChevronLeft, ChevronRight, Database, LayoutDashboard, Boxes, Calculator, GitCompareArrows, History, FileText, Download, Plus, Trash2, Filter, Menu, X, LogOut, LockKeyhole, ExternalLink } from "lucide-react";
 
 type Row={reference:string;record_type:string;code:string;description:string;unit:string;uf:string|null;regime:string|null;table_type:string;value:string|null;value_type:string|null;composition_code:string|null;status:string|null;source_file:string;source_sheet:string;source_row:number};
 type Catalog={items:Row[];total:number;limit:number;offset:number};
