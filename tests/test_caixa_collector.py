@@ -154,6 +154,17 @@ def test_download_manifest_write_does_not_follow_symlinked_temp_file(tmp_path):
     assert artifact.sha256 in manifest_path.read_text(encoding="utf-8")
 
 
+def test_safe_extract_rejects_duplicate_member_paths(tmp_path):
+    archive_path = tmp_path / "duplicate.zip"
+    with pytest.warns(UserWarning, match="Duplicate name"):
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("SINAPI/data.xlsx", b"first")
+            archive.writestr("SINAPI/data.xlsx", b"second")
+
+    with pytest.raises(CaixaDownloadError, match="duplicada"):
+        safe_extract_zip(archive_path, tmp_path / "out")
+
+
 def test_safe_extract_blocks_zip_slip(tmp_path):
     archive_path = tmp_path / "unsafe.zip"
     with zipfile.ZipFile(archive_path, "w") as archive:
