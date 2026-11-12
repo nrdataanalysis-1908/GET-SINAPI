@@ -165,6 +165,27 @@ def test_safe_extract_rejects_duplicate_member_paths(tmp_path):
         safe_extract_zip(archive_path, tmp_path / "out")
 
 
+def test_safe_extract_rejects_windows_drive_paths(tmp_path):
+    archive_path = tmp_path / "drive-path.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("C:/outside.txt", "not allowed")
+
+    with pytest.raises(CaixaDownloadError, match="inseguro"):
+        safe_extract_zip(archive_path, tmp_path / "out")
+
+
+def test_safe_extract_rejects_unix_special_file_types(tmp_path):
+    archive_path = tmp_path / "special-file.zip"
+    member = zipfile.ZipInfo("SINAPI/pipe")
+    member.create_system = 3
+    member.external_attr = (stat.S_IFIFO | 0o600) << 16
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(member, b"not a regular file")
+
+    with pytest.raises(CaixaDownloadError, match="inseguro"):
+        safe_extract_zip(archive_path, tmp_path / "out")
+
+
 def test_safe_extract_blocks_zip_slip(tmp_path):
     archive_path = tmp_path / "unsafe.zip"
     with zipfile.ZipFile(archive_path, "w") as archive:
