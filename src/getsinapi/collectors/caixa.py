@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 import time
 import zipfile
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from io import BytesIO
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import requests
 
@@ -35,6 +37,37 @@ class DownloadArtifact:
 
 class CaixaDownloadError(RuntimeError):
     """Falha ao obter ou validar um pacote oficial da CAIXA."""
+
+
+def _sha256_file(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".part", dir=path.parent
+    )
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_name, path)
+    except Exception:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        Path(temporary_name).unlink(missing_ok=True)
+        raise
 
 
 def report_url(reference: str) -> str:
@@ -98,10 +131,32 @@ def download_monthly_xlsx(
     target = settings.raw_dir / filename
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    if not target.exists():
-        temporary = target.with_suffix(target.suffix + ".part")
-        temporary.write_bytes(payload)
-        temporary.replace(target)
+    if target.exists():
+        if not target.is_file():
+            raise CaixaDownloadError(
+                "O destino local do pacote não é um arquivo regular."
+            )
+        try:
+            local_digest, local_size = _sha256_file(target)
+        except OSError as exc:
+            raise CaixaDownloadError(
+                f"Não foi possível verificar o pacote local existente: {target}"
+            ) from exc
+        if local_digest != digest or local_size != len(payload):
+            _atomic_write_bytes(target, payload)
+    else:
+        _atomic_write_bytes(target, payload)
+
+    try:
+        stored_digest, stored_size = _sha256_file(target)
+    except OSError as exc:
+        raise CaixaDownloadError(
+            f"Não foi possível verificar o pacote armazenado: {target}"
+        ) from exc
+    if stored_digest != digest or stored_size != len(payload):
+        raise CaixaDownloadError(
+            "O pacote armazenado não corresponde ao conteúdo recebido da CAIXA."
+        )
 
     artifact = DownloadArtifact(
         reference=reference,
