@@ -1,3 +1,6 @@
+import hashlib
+import json
+import stat
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -58,6 +61,29 @@ def test_download_saves_zip_and_manifest(tmp_path):
     assert artifact.size_bytes > 0
     assert len(artifact.sha256) == 64
     assert list((tmp_path / "data" / "manifests").glob("*.json"))
+
+
+def test_download_repairs_corrupted_existing_archive(tmp_path):
+    payload = make_zip()
+    response = requests.Response()
+    response.status_code = 200
+    response._content = payload
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return response
+
+    settings = make_settings(tmp_path)
+    first = download_monthly_xlsx("2026-09", settings=settings, session=FakeSession())
+    first.path.write_bytes(b"corrupted local cache")
+
+    repaired = download_monthly_xlsx(
+        "2026-09", settings=settings, session=FakeSession()
+    )
+
+    assert repaired.path.read_bytes() == payload
+    assert repaired.sha256 == hashlib.sha256(payload).hexdigest()
+    assert repaired.size_bytes == len(payload)
 
 
 def test_download_rejects_html_response(tmp_path):
