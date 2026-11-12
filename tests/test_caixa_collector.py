@@ -1,5 +1,4 @@
 import hashlib
-import json
 import stat
 import zipfile
 from io import BytesIO
@@ -156,10 +155,9 @@ def test_download_manifest_write_does_not_follow_symlinked_temp_file(tmp_path):
 
 def test_safe_extract_rejects_duplicate_member_paths(tmp_path):
     archive_path = tmp_path / "duplicate.zip"
-    with pytest.warns(UserWarning, match="Duplicate name"):
-        with zipfile.ZipFile(archive_path, "w") as archive:
-            archive.writestr("SINAPI/data.xlsx", b"first")
-            archive.writestr("SINAPI/data.xlsx", b"second")
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("SINAPI/data.xlsx", b"first")
+        archive.writestr("SINAPI/data.xlsx", b"second")
 
     with pytest.raises(CaixaDownloadError, match="duplicada"):
         safe_extract_zip(archive_path, tmp_path / "out")
