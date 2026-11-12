@@ -218,7 +218,7 @@ def safe_extract_zip(
                 or file_type not in (0, stat.S_IFREG, stat.S_IFDIR)
             ):
                 raise CaixaDownloadError(
-                    f"Caminho ou tipo de arquivo inseguro no ZIP: {member.filename}"
+                    f"Caminho inseguro ou tipo de arquivo não permitido no ZIP: {member.filename}"
                 )
             normalized = parsed.as_posix().rstrip("/").casefold()
             if not normalized or normalized == ".":
