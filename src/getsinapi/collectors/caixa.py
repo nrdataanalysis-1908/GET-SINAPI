@@ -173,12 +173,12 @@ def download_monthly_xlsx(
     manifest_dir = settings.manifest_dir
     manifest_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = manifest_dir / f"{reference}-{digest[:12]}.json"
-    manifest_tmp = manifest_path.with_suffix(".json.part")
-    manifest_tmp.write_text(
-        json.dumps({**asdict(artifact), "path": str(target)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    manifest_tmp.replace(manifest_path)
+    manifest_payload = json.dumps(
+        {**asdict(artifact), "path": str(target)},
+        ensure_ascii=False,
+        indent=2,
+    ).encode("utf-8")
+    _atomic_write_bytes(manifest_path, manifest_payload)
     return artifact
 
 
