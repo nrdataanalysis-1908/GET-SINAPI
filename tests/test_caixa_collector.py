@@ -86,6 +86,30 @@ def test_download_repairs_corrupted_existing_archive(tmp_path):
     assert repaired.size_bytes == len(payload)
 
 
+def test_download_rejects_symlinked_archive_target_without_following_target(tmp_path):
+    payload = make_zip()
+    digest = hashlib.sha256(payload).hexdigest()
+    settings = make_settings(tmp_path)
+    settings.create_data_directories()
+    target = settings.raw_dir / f"SINAPI-2026-09-formato-xlsx-{digest[:12]}.zip"
+    protected = tmp_path / "protected.zip"
+    protected.write_bytes(b"protected external file")
+    target.symlink_to(protected)
+
+    response = requests.Response()
+    response.status_code = 200
+    response._content = payload
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return response
+
+    with pytest.raises(CaixaDownloadError, match="link simbólico"):
+        download_monthly_xlsx("2026-09", settings=settings, session=FakeSession())
+
+    assert protected.read_bytes() == b"protected external file"
+
+
 def test_download_rejects_html_response(tmp_path):
     response = requests.Response()
     response.status_code = 200
