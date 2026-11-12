@@ -5,13 +5,14 @@ import hashlib
 import json
 import os
 import re
+import stat
 import tempfile
 import time
 import zipfile
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from io import BytesIO
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import requests
 
@@ -202,6 +203,23 @@ def safe_extract_zip(
         for member in members:
             name = member.filename.replace("\\", "/")
             parsed = PurePosixPath(name)
+            windows_path = PureWindowsPath(name)
+            mode = member.external_attr >> 16
+            file_type = stat.S_IFMT(mode)
+            if (
+                not name
+                or "\x00" in name
+                or any(ord(character) < 32 or ord(character) == 127 for character in name)
+                or parsed.is_absolute()
+                or windows_path.drive
+                or windows_path.root
+                or ":" in name
+                or ".." in parsed.parts
+                or file_type not in (0, stat.S_IFREG, stat.S_IFDIR)
+            ):
+                raise CaixaDownloadError(
+                    f"Caminho ou tipo de arquivo inseguro no ZIP: {member.filename}"
+                )
             normalized = parsed.as_posix().rstrip("/").casefold()
             if not normalized or normalized == ".":
                 raise CaixaDownloadError(
@@ -212,15 +230,13 @@ def safe_extract_zip(
                     f"Entrada duplicada no ZIP: {member.filename}"
                 )
             seen_paths.add(normalized)
-            mode = (member.external_attr >> 16) & 0o170000
-            if parsed.is_absolute() or ".." in parsed.parts or mode == 0o120000:
-                raise CaixaDownloadError(f"Caminho inseguro encontrado no ZIP: {member.filename}")
             target = (destination / Path(*parsed.parts)).resolve()
             if target != destination and destination not in target.parents:
                 raise CaixaDownloadError(f"Destino de extração inválido: {member.filename}")
 
         for member in members:
-            if member.is_dir():
+            member_mode = member.external_attr >> 16
+            if member.is_dir() or stat.S_IFMT(member_mode) == stat.S_IFDIR:
                 continue
             target = (
                 destination / Path(*PurePosixPath(member.filename.replace("\\", "/")).parts)
