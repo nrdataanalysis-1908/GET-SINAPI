@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import stat
+import tempfile
 import time
 import zipfile
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from io import BytesIO
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import requests
 
@@ -35,6 +38,37 @@ class DownloadArtifact:
 
 class CaixaDownloadError(RuntimeError):
     """Falha ao obter ou validar um pacote oficial da CAIXA."""
+
+
+def _sha256_file(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with Path(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    return digest.hexdigest(), size
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".part", dir=path.parent
+    )
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_name, path)
+    except Exception:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        Path(temporary_name).unlink(missing_ok=True)
+        raise
 
 
 def report_url(reference: str) -> str:
@@ -98,10 +132,36 @@ def download_monthly_xlsx(
     target = settings.raw_dir / filename
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    if not target.exists():
-        temporary = target.with_suffix(target.suffix + ".part")
-        temporary.write_bytes(payload)
-        temporary.replace(target)
+    if target.is_symlink():
+        raise CaixaDownloadError(
+            "O destino local do pacote não pode ser um link simbólico."
+        )
+    if target.exists():
+        if not target.is_file():
+            raise CaixaDownloadError(
+                "O destino local do pacote não é um arquivo regular."
+            )
+        try:
+            local_digest, local_size = _sha256_file(target)
+        except OSError as exc:
+            raise CaixaDownloadError(
+                f"Não foi possível verificar o pacote local existente: {target}"
+            ) from exc
+        if local_digest != digest or local_size != len(payload):
+            _atomic_write_bytes(target, payload)
+    else:
+        _atomic_write_bytes(target, payload)
+
+    try:
+        stored_digest, stored_size = _sha256_file(target)
+    except OSError as exc:
+        raise CaixaDownloadError(
+            f"Não foi possível verificar o pacote armazenado: {target}"
+        ) from exc
+    if stored_digest != digest or stored_size != len(payload):
+        raise CaixaDownloadError(
+            "O pacote armazenado não corresponde ao conteúdo recebido da CAIXA."
+        )
 
     artifact = DownloadArtifact(
         reference=reference,
@@ -114,12 +174,12 @@ def download_monthly_xlsx(
     manifest_dir = settings.manifest_dir
     manifest_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = manifest_dir / f"{reference}-{digest[:12]}.json"
-    manifest_tmp = manifest_path.with_suffix(".json.part")
-    manifest_tmp.write_text(
-        json.dumps({**asdict(artifact), "path": str(target)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    manifest_tmp.replace(manifest_path)
+    manifest_payload = json.dumps(
+        {**asdict(artifact), "path": str(target)},
+        ensure_ascii=False,
+        indent=2,
+    ).encode("utf-8")
+    _atomic_write_bytes(manifest_path, manifest_payload)
     return artifact
 
 
@@ -139,20 +199,48 @@ def safe_extract_zip(
         if total_size > max_total_uncompressed_bytes:
             raise CaixaDownloadError("ZIP excede o limite de extração configurado.")
 
+        seen_paths: set[str] = set()
         for member in members:
             name = member.filename.replace("\\", "/")
-            parsed = Path(name)
-            mode = (member.external_attr >> 16) & 0o170000
-            if parsed.is_absolute() or ".." in parsed.parts or mode == 0o120000:
-                raise CaixaDownloadError(f"Caminho inseguro encontrado no ZIP: {member.filename}")
-            target = (destination / parsed).resolve()
+            parsed = PurePosixPath(name)
+            windows_path = PureWindowsPath(name)
+            mode = member.external_attr >> 16
+            file_type = stat.S_IFMT(mode)
+            if (
+                not name
+                or "\x00" in name
+                or any(ord(character) < 32 or ord(character) == 127 for character in name)
+                or parsed.is_absolute()
+                or windows_path.drive
+                or windows_path.root
+                or ":" in name
+                or ".." in parsed.parts
+                or file_type not in (0, stat.S_IFREG, stat.S_IFDIR)
+            ):
+                raise CaixaDownloadError(
+                    f"Caminho inseguro ou tipo de arquivo não permitido no ZIP: {member.filename}"
+                )
+            normalized = parsed.as_posix().rstrip("/").casefold()
+            if not normalized or normalized == ".":
+                raise CaixaDownloadError(
+                    f"Caminho inseguro encontrado no ZIP: {member.filename}"
+                )
+            if normalized in seen_paths:
+                raise CaixaDownloadError(
+                    f"Entrada duplicada no ZIP: {member.filename}"
+                )
+            seen_paths.add(normalized)
+            target = (destination / Path(*parsed.parts)).resolve()
             if target != destination and destination not in target.parents:
                 raise CaixaDownloadError(f"Destino de extração inválido: {member.filename}")
 
         for member in members:
-            if member.is_dir():
+            member_mode = member.external_attr >> 16
+            if member.is_dir() or stat.S_IFMT(member_mode) == stat.S_IFDIR:
                 continue
-            target = (destination / member.filename.replace("\\", "/")).resolve()
+            target = (
+                destination / Path(*PurePosixPath(member.filename.replace("\\", "/")).parts)
+            ).resolve()
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(member) as source, target.open("wb") as output:
                 while chunk := source.read(1024 * 1024):

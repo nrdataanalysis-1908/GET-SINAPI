@@ -182,7 +182,8 @@ A stack acima representa tecnologias incorporadas ou previstas na arquitetura. A
 | Extração segura e catálogo XLSX | Implementada |
 | Auditoria dos layouts oficiais | Em andamento |
 | Parsers de preços ISD/ICD/ISE e relatório Analítico | Implementação inicial |
-| Motor de cálculo recursivo de composições e orçamento | Implementação inicial |\n| Persistência histórica SQLite e rotas de consulta | Implementação inicial |
+| Motor de cálculo recursivo de composições e orçamento | Implementação inicial |
+| Persistência histórica SQLite e rotas de consulta | Implementação inicial |
 | Migração PostgreSQL/Supabase e histórico analítico avançado | Planejado |
 | API de consulta | Planejado |
 | Exportação analítica e dashboards | Planejado |
