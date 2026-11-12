@@ -125,6 +125,35 @@ def test_download_rejects_html_response(tmp_path):
         )
 
 
+def test_download_manifest_write_does_not_follow_symlinked_temp_file(tmp_path):
+    payload = make_zip()
+    digest = hashlib.sha256(payload).hexdigest()
+    settings = make_settings(tmp_path)
+    settings.create_data_directories()
+    manifest_path = settings.manifest_dir / f"2026-09-{digest[:12]}.json"
+    manifest_temporary = manifest_path.with_suffix(".json.part")
+    protected = tmp_path / "protected-manifest.json"
+    protected.write_text("preserve this file", encoding="utf-8")
+    manifest_temporary.symlink_to(protected)
+
+    response = requests.Response()
+    response.status_code = 200
+    response._content = payload
+
+    class FakeSession:
+        def get(self, *args, **kwargs):
+            return response
+
+    artifact = download_monthly_xlsx(
+        "2026-09", settings=settings, session=FakeSession()
+    )
+
+    assert protected.read_text(encoding="utf-8") == "preserve this file"
+    assert manifest_path.is_file()
+    assert not manifest_path.is_symlink()
+    assert artifact.sha256 in manifest_path.read_text(encoding="utf-8")
+
+
 def test_safe_extract_blocks_zip_slip(tmp_path):
     archive_path = tmp_path / "unsafe.zip"
     with zipfile.ZipFile(archive_path, "w") as archive:
