@@ -198,20 +198,33 @@ def safe_extract_zip(
         if total_size > max_total_uncompressed_bytes:
             raise CaixaDownloadError("ZIP excede o limite de extração configurado.")
 
+        seen_paths: set[str] = set()
         for member in members:
             name = member.filename.replace("\\", "/")
-            parsed = Path(name)
+            parsed = PurePosixPath(name)
+            normalized = parsed.as_posix().rstrip("/").casefold()
+            if not normalized or normalized == ".":
+                raise CaixaDownloadError(
+                    f"Caminho inseguro encontrado no ZIP: {member.filename}"
+                )
+            if normalized in seen_paths:
+                raise CaixaDownloadError(
+                    f"Entrada duplicada no ZIP: {member.filename}"
+                )
+            seen_paths.add(normalized)
             mode = (member.external_attr >> 16) & 0o170000
             if parsed.is_absolute() or ".." in parsed.parts or mode == 0o120000:
                 raise CaixaDownloadError(f"Caminho inseguro encontrado no ZIP: {member.filename}")
-            target = (destination / parsed).resolve()
+            target = (destination / Path(*parsed.parts)).resolve()
             if target != destination and destination not in target.parents:
                 raise CaixaDownloadError(f"Destino de extração inválido: {member.filename}")
 
         for member in members:
             if member.is_dir():
                 continue
-            target = (destination / member.filename.replace("\\", "/")).resolve()
+            target = (
+                destination / Path(*PurePosixPath(member.filename.replace("\\", "/")).parts)
+            ).resolve()
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(member) as source, target.open("wb") as output:
                 while chunk := source.read(1024 * 1024):
