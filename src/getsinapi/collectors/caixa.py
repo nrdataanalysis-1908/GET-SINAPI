@@ -131,6 +131,10 @@ def download_monthly_xlsx(
     target = settings.raw_dir / filename
     target.parent.mkdir(parents=True, exist_ok=True)
 
+    if target.is_symlink():
+        raise CaixaDownloadError(
+            "O destino local do pacote não pode ser um link simbólico."
+        )
     if target.exists():
         if not target.is_file():
             raise CaixaDownloadError(
