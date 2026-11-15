@@ -229,7 +229,7 @@ def _export_menu(settings: Settings) -> int:
         encargo_mode=encargo_mode,
         search=search,
     )
-    print(_paint(f"\n  STATUS  : EXPORTAÇÃO CONCLUÍDA", GREEN))
+    print(_paint("\n  STATUS  : EXPORTAÇÃO CONCLUÍDA", GREEN))
     print(_paint(f"  ARQUIVOS: {len(generated)}", GREEN))
     for path in generated:
         print(_paint("  [OK]", GREEN) + f" {path}")
