@@ -205,72 +205,106 @@ def _free_port() -> int:
 
 def main() -> None:
     global PORT, API_PORT
-    configure_storage()
-    import uvicorn
-
-    from getsinapi.api.main import app
-
-    API_PORT = _free_port()
-    api = uvicorn.Server(uvicorn.Config(
-        app, host=HOST, port=API_PORT, log_level="warning",
-        log_config=None, access_log=False,
-    ))
-    threading.Thread(target=api.run, daemon=True, name="sinapi-api").start()
-    for _ in range(100):
-        try:
-            with urllib.request.urlopen(f"http://{HOST}:{API_PORT}/api/health", timeout=1):
-                break
-        except (urllib.error.URLError, OSError, TimeoutError):
-            time.sleep(0.2)
-    else:
-        raise RuntimeError("A API local não iniciou.")
-
-    # Atualização independente do ciclo de vida do painel: não bloqueia a abertura.
-    from getsinapi.bootstrap import run_bootstrap
-
-    def update_database():
-        # O serviço permanece ativo até concluir uma atualização válida.
-        # Backoff progressivo evita martelar a CAIXA quando houver 403/429,
-        # indisponibilidade temporária ou publicação ainda não concluída.
-        retry_delay = 30
-        max_retry_delay = 15 * 60
-        while True:
-            try:
-                result = run_bootstrap()
-                if result.get("status") in {"updated", "up_to_date", "complete"}:
-                    retry_delay = 30
-                    # Verificação periódica: novas competências são incorporadas
-                    # sem exigir que o usuário feche e reabra o aplicativo.
-                    time.sleep(6 * 60 * 60)
-                    continue
-                if result.get("status") == "partial" and not result.get("failed"):
-                    # A cobertura legada é explicitamente reportada como pendência;
-                    # não repetir toda a descoberta a cada 30 segundos.
-                    retry_delay = 30
-                    time.sleep(6 * 60 * 60)
-                    continue
-                if result.get("status") == "already_running":
-                    time.sleep(15)
-                    continue
-                log.warning("Bootstrap não concluiu: %s. Nova tentativa em %s segundos.",
-                            result, retry_delay)
-            except Exception:
-                log.exception("Atualização SINAPI falhou; nova tentativa automática em %s segundos.",
-                              retry_delay)
-            time.sleep(retry_delay)
-            retry_delay = min(retry_delay * 2, max_retry_delay)
-
-    threading.Thread(target=update_database, daemon=True, name="sinapi-bootstrap").start()
-    server = ThreadingHTTPServer((HOST, 0), DesktopHandler)
-    PORT = server.server_address[1]
-    webbrowser.open(f"http://{HOST}:{PORT}")
+    profile = Path(os.environ.get("USERPROFILE", Path.home()))
+    local_app_data = Path(os.environ.get("LOCALAPPDATA", profile))
+    log_dir = local_app_data / "NRTech" / "GET-SINAPI-V3" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        filename=log_dir / "desktop.log",
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(threadName)s %(message)s",
+        encoding="utf-8",
+        force=True,
+    )
+    log.info("Iniciando GET-SINAPI V3.")
+    api = None
+    server = None
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        configure_storage()
+        log.info("Armazenamento configurado em %s.", os.environ["GETSINAPI_DATA_DIR"])
+        import uvicorn
+
+        from getsinapi.api.main import app
+
+        API_PORT = _free_port()
+        api = uvicorn.Server(uvicorn.Config(
+            app, host=HOST, port=API_PORT, log_level="warning",
+            log_config=None, access_log=False,
+        ))
+        api_thread = threading.Thread(target=api.run, daemon=True, name="sinapi-api")
+        api_thread.start()
+        for _ in range(100):
+            try:
+                with urllib.request.urlopen(f"http://{HOST}:{API_PORT}/api/health", timeout=1):
+                    break
+            except (urllib.error.URLError, OSError, TimeoutError):
+                time.sleep(0.2)
+        else:
+            raise RuntimeError("A API local não iniciou em até 20 segundos.")
+        log.info("API disponível na porta %s.", API_PORT)
+
+        from getsinapi.bootstrap import run_bootstrap
+
+        def update_database():
+            retry_delay = 30
+            max_retry_delay = 15 * 60
+            while True:
+                try:
+                    result = run_bootstrap()
+                    if result.get("status") in {"updated", "up_to_date", "complete"}:
+                        retry_delay = 30
+                        time.sleep(6 * 60 * 60)
+                        continue
+                    if result.get("status") == "partial" and not result.get("failed"):
+                        retry_delay = 30
+                        time.sleep(6 * 60 * 60)
+                        continue
+                    if result.get("status") == "already_running":
+                        time.sleep(15)
+                        continue
+                    log.warning("Bootstrap não concluiu: %s. Nova tentativa em %s segundos.",
+                                result, retry_delay)
+                except Exception:
+                    log.exception("Atualização SINAPI falhou; nova tentativa em %s segundos.",
+                                  retry_delay)
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, max_retry_delay)
+
+        threading.Thread(target=update_database, daemon=True, name="sinapi-bootstrap").start()
+
+        server = ThreadingHTTPServer((HOST, 0), DesktopHandler)
+        PORT = server.server_address[1]
+        server_thread = threading.Thread(
+            target=server.serve_forever, daemon=True, name="sinapi-web"
+        )
+        server_thread.start()
+        url = f"http://{HOST}:{PORT}/"
+        for attempt in range(50):
+            try:
+                with urllib.request.urlopen(url, timeout=1) as response:
+                    if response.status == 200:
+                        break
+            except (urllib.error.URLError, OSError, TimeoutError):
+                time.sleep(0.2)
+        else:
+            raise RuntimeError("O servidor da interface não respondeu em até 10 segundos.")
+        log.info("Interface disponível em %s.", url)
+        opened = webbrowser.open(url, new=2, autoraise=True)
+        if not opened:
+            log.warning("O navegador padrão não confirmou a abertura. URL local: %s", url)
+        else:
+            log.info("Solicitada abertura do navegador.")
+        server_thread.join()
+    except Exception:
+        log.exception("Falha fatal na inicialização do GET-SINAPI V3.")
+        raise
     finally:
-        server.shutdown()
-        api.should_exit = True
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if api is not None:
+            api.should_exit = True
+        log.info("GET-SINAPI V3 encerrado.")
 
 
 if __name__ == "__main__":
