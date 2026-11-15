@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 import platform
 import sys
-from pathlib import Path
 
 from getsinapi import __version__
 from getsinapi.config import Settings
