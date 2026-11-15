@@ -122,41 +122,40 @@ def _export_menu(settings: Settings) -> int:
         print("Inicialize a base com os comandos download, extract, parse e load.")
         return 2
 
-    print("\n" + "=" * 62)
-    print("GET-SINAPI | CENTRAL DE EXPORTAÇÃO EM LOTE")
-    print("=" * 62)
-    print("1. Exportar tudo (insumos, composições e componentes)")
-    print("2. Escolher categorias")
+    _show_header()
+    print(_paint("\n01  |  MODO DE EXPORTAÇÃO", BLUE))
+    print("-" * 68)
+    print("  [1] Exportar tudo — insumos, composições e componentes")
+    print("  [2] Personalizar categorias")
     mode = _ask_choice("Selecione", {"1": "Tudo", "2": "Personalizado"}, "1")
 
     categories = ["INSUMO", "COMPOSICAO", "COMPONENTE"]
     if mode == "2":
-        print("\nCategorias disponíveis:")
-        print("1. Insumos   2. Composições   3. Componentes")
-        selected = input("Informe uma ou mais opções separadas por vírgula (ex.: 1,3): ").strip()
+        print(_paint("\n02  |  CATEGORIAS", BLUE))
+        print("  [1] Insumos       [2] Composições       [3] Componentes")
+        selected = input("Categorias (ex.: 1,3): ").strip()
         mapping = {"1": "INSUMO", "2": "COMPOSICAO", "3": "COMPONENTE"}
-        chosen = [mapping[item.strip()] for item in selected.split(",") if item.strip() in mapping]
-        if not chosen:
-            print("Nenhuma categoria válida foi selecionada.")
+        try:
+            indexes = _parse_multi_selection(selected, 3)
+            categories = list(mapping.values()) if indexes is None else [
+                mapping[str(index)] for index in indexes
+            ]
+        except ValueError as exc:
+            print(_paint(f"Seleção inválida: {exc}", YELLOW))
             return 2
-        categories = list(dict.fromkeys(chosen))
 
     refs = available_references(database)
     if not refs:
         print("A base SQLite não possui competências carregadas.")
         return 2
-    print("\nCompetências disponíveis:")
+    print(_paint("\n03  |  COMPETÊNCIAS DISPONÍVEIS", BLUE))
     for index, reference in enumerate(refs, start=1):
-        print(f"{index}. {reference}")
-    print("A. Todas as competências")
-    reference_choice = input("Competência [A]: ").strip().upper() or "A"
-    if reference_choice == "A":
-        references = None
-    elif reference_choice.isdigit() and 1 <= int(reference_choice) <= len(refs):
-        references = [refs[int(reference_choice) - 1]]
-    else:
-        print("Competência inválida.")
-        return 2
+        print(_paint(f"  [{index:>2}] {reference}", CYAN))
+    print(_paint("  [ A] Todas as competências", BLUE))
+    reference_choice = input("Competências (ex.: 1,2,5 ou A) [A]: ").strip().upper() or "A"
+    try:
+        indexes = _parse_multi_selection(reference_choice, len(refs))
+        references = None if indexes is None else [refs[index - 1] for index in indexes]
 
     uf = input("\nUF (duas letras) ou ENTER para todas: ").strip().upper() or None
     if uf and (len(uf) != 2 or not uf.isalpha()):
@@ -187,7 +186,8 @@ def _export_menu(settings: Settings) -> int:
     output_text = input(f"Pasta de destino [{default_output}]: ").strip()
     output_dir = Path(output_text).expanduser() if output_text else default_output
 
-    print("\nIniciando extração da base local...")
+    print(_paint("\n04  |  PROCESSAMENTO", BLUE))
+    print("Iniciando extração da base local...")
     generated = export_catalog(
         database,
         output_dir,
@@ -199,7 +199,7 @@ def _export_menu(settings: Settings) -> int:
         encargo_mode=encargo_mode,
         search=search,
     )
-    print(f"\nExportação concluída. Arquivos gerados: {len(generated)}")
+    print(_paint(f"\nSTATUS: EXPORTAÇÃO CONCLUÍDA | ARQUIVOS: {len(generated)}", CYAN))
     for path in generated:
         print(f"  • {path}")
     print(_paint("\\nGET-SINAPI | CAIXA — NR TECH", BLUE))
