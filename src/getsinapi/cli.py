@@ -14,6 +14,7 @@ from getsinapi.config import Settings
 CYAN = "\033[96m"
 BLUE = "\033[94m"
 YELLOW = "\033[93m"
+GREEN = "\033[92m"
 RESET = "\033[0m"
 
 
@@ -42,6 +43,20 @@ ANSI_ENABLED = _enable_ansi()
 
 def _paint(value: str, color: str) -> str:
     return f"{color}{value}{RESET}" if ANSI_ENABLED else value
+
+
+def _rule(char: str = "─", color: str = CYAN) -> None:
+    """Desenha um separador padronizado para os painéis do terminal."""
+    print(_paint("  " + char * 66, color))
+
+
+def _section(number: str, title: str, subtitle: str | None = None) -> None:
+    """Exibe uma seção numerada com hierarquia visual consistente."""
+    print()
+    print(_paint(f"  {number}  |  {title.upper()}", BLUE))
+    _rule()
+    if subtitle:
+        print(f"  {subtitle}")
 
 
 def _show_header() -> None:
@@ -128,18 +143,21 @@ def _export_menu(settings: Settings) -> int:
         print("Inicialize a base com os comandos download, extract, parse e load.")
         return 2
 
-    print(_paint("  MENU DE EXPORTAÇÃO", BLUE))
-    print(_paint("  " + "─" * 66, CYAN))
-    print(_paint("\n01  |  MODO DE EXPORTAÇÃO", BLUE))
-    print("-" * 68)
-    print("  [1] Exportar tudo — insumos, composições e componentes")
-    print("  [2] Personalizar categorias")
+    print(_paint("  ╔" + "═" * 66 + "╗", CYAN))
+    print(_paint("  ║" + "CENTRAL DE EXPORTAÇÃO".center(66) + "║", CYAN))
+    print(_paint("  ╚" + "═" * 66 + "╝", CYAN))
+    print("  Selecione os dados, aplique os filtros e defina o formato de saída.")
+    _section("01", "Modo de exportação", "Escolha entre uma exportação completa ou personalizada.")
+    print(_paint("  [1]", CYAN) + " Exportação completa — insumos, composições e componentes")
+    print(_paint("  [2]", CYAN) + " Exportação personalizada — selecionar categorias")
     mode = _ask_choice("Selecione", {"1": "Tudo", "2": "Personalizado"}, "1")
 
     categories = ["INSUMO", "COMPOSICAO", "COMPONENTE"]
     if mode == "2":
-        print(_paint("\n02  |  CATEGORIAS", BLUE))
-        print("  [1] Insumos       [2] Composições       [3] Componentes")
+        _section("02", "Categorias", "Informe uma ou mais categorias separadas por vírgula.")
+        print(_paint("  [1]", CYAN) + " Insumos")
+        print(_paint("  [2]", CYAN) + " Composições")
+        print(_paint("  [3]", CYAN) + " Componentes")
         selected = input("Categorias (ex.: 1,3): ").strip()
         mapping = {"1": "INSUMO", "2": "COMPOSICAO", "3": "COMPONENTE"}
         try:
@@ -155,10 +173,10 @@ def _export_menu(settings: Settings) -> int:
     if not refs:
         print("A base SQLite não possui competências carregadas.")
         return 2
-    print(_paint("\n03  |  COMPETÊNCIAS DISPONÍVEIS", BLUE))
+    _section("03", "Competências disponíveis", "Selecione números separados por vírgula ou A para todas.")
     for index, reference in enumerate(refs, start=1):
         print(_paint(f"  [{index:>2}] {reference}", CYAN))
-    print(_paint("  [ A] Todas as competências", BLUE))
+    print(_paint("  [ A]", CYAN) + " Todas as competências")
     reference_choice = input("Competências (ex.: 1,2,5 ou A) [A]: ").strip().upper() or "A"
     try:
         indexes = _parse_multi_selection(reference_choice, len(refs))
@@ -167,37 +185,39 @@ def _export_menu(settings: Settings) -> int:
         print(_paint(f"Competência inválida: {exc}", YELLOW))
         return 2
 
-    uf = input("\nUF (duas letras) ou ENTER para todas: ").strip().upper() or None
+    _section("04", "Filtros complementares", "Pressione ENTER para manter o filtro sem restrição.")
+    uf = input("  UF (duas letras) ou ENTER para todas: ").strip().upper() or None
     if uf and (len(uf) != 2 or not uf.isalpha()):
         print("UF inválida.")
         return 2
 
     regime_choice = _ask_choice(
-        "Regime: 1 todos | 2 desonerado | 3 não desonerado",
+        "  Regime: [1] Todos | [2] Desonerado | [3] Não desonerado",
         {"1": "all", "2": "desonerado", "3": "nao_desonerado"},
         "1",
     )
     regime = None if regime_choice == "1" else regime_choice
 
     encargo_choice = _ask_choice(
-        "Encargos: 1 todos | 2 com encargos | 3 sem encargos",
+        "  Encargos: [1] Todos | [2] Com encargos | [3] Sem encargos",
         {"1": "all", "2": "com_encargos", "3": "sem_encargos"},
         "1",
     )
     encargo_mode = None if encargo_choice == "1" else encargo_choice
 
-    search = input("Pesquisar por código/descrição (ENTER para sem filtro): ").strip() or None
+    search = input("  Código ou descrição (ENTER para sem filtro): ").strip() or None
+    _section("05", "Formato e destino", "Os arquivos serão gravados na pasta informada.")
     file_format = _ask_choice(
-        "Formato: 1 Excel (.xlsx) | 2 CSV | 3 Excel + CSV",
+        "  Formato: [1] Excel (.xlsx) | [2] CSV | [3] Excel + CSV",
         {"1": "xlsx", "2": "csv", "3": "both"},
         "1",
     )
     default_output = database.parent / "exports"
-    output_text = input(f"Pasta de destino [{default_output}]: ").strip()
+    output_text = input(f"  Pasta de destino [{default_output}]: ").strip()
     output_dir = Path(output_text).expanduser() if output_text else default_output
 
-    print(_paint("\n04  |  PROCESSAMENTO", BLUE))
-    print("Iniciando extração da base local...")
+    _section("06", "Processamento", "Preparando a exportação a partir da base SQLite local.")
+    print(_paint("  PROCESSANDO...", YELLOW))
     generated = export_catalog(
         database,
         output_dir,
@@ -209,10 +229,12 @@ def _export_menu(settings: Settings) -> int:
         encargo_mode=encargo_mode,
         search=search,
     )
-    print(_paint(f"\nSTATUS: EXPORTAÇÃO CONCLUÍDA | ARQUIVOS: {len(generated)}", CYAN))
+    print(_paint(f"\n  STATUS  : EXPORTAÇÃO CONCLUÍDA", GREEN))
+    print(_paint(f"  ARQUIVOS: {len(generated)}", GREEN))
     for path in generated:
-        print(f"  • {path}")
-    print(_paint("\nGET-SINAPI | CAIXA — NR TECH", BLUE))
+        print(_paint("  [OK]", GREEN) + f" {path}")
+    _rule("═")
+    print(_paint("  © 2026 Nadison Roberto | NR TECH", BLUE))
     return 0
 
 
