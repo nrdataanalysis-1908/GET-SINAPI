@@ -9,10 +9,10 @@
 Aplicação para Windows que transforma publicações oficiais da CAIXA/SINAPI em consultas, análises, comparações e orçamentos rastreáveis. O projeto também disponibiliza uma ferramenta Python de exportação em lote pelo terminal.
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-1677C8?style=for-the-badge&logo=python&logoColor=white)
-![React](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-087BCE?style=for-the-badge&logo=react&logoColor=white)
+![React](https://img.shields.io/badge/Interface-React%20%2B%20Vite-087BCE?style=for-the-badge&logo=react&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![SQLite](https://img.shields.io/badge/Database-SQLite-21B8D5?style=for-the-badge&logo=sqlite&logoColor=white)
-![Windows](https://img.shields.io/badge/Platform-Windows-1677C8?style=for-the-badge&logo=windows&logoColor=white)
+![SQLite](https://img.shields.io/badge/Banco-SQLite-21B8D5?style=for-the-badge&logo=sqlite&logoColor=white)
+![Windows](https://img.shields.io/badge/Sistema-Windows-1677C8?style=for-the-badge&logo=windows&logoColor=white)
 [![PyPI version](https://img.shields.io/pypi/v/get-sinapi?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/get-sinapi/)
 
 **Dados oficiais. Processamento local. Decisões de engenharia com rastreabilidade.**
