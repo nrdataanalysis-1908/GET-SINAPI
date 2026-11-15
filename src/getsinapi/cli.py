@@ -232,6 +232,10 @@ def _export_menu(settings: Settings) -> int:
 
     _section("06", "Processamento", "Preparando a exportação a partir da base SQLite local.")
     print(_paint("  PROCESSANDO...", YELLOW))
+
+    def show_progress(phase: str, processed: int) -> None:
+        print(f"  {phase}: {processed:,} registros processados", end="\r", flush=True)
+
     generated = export_catalog(
         database,
         output_dir,
@@ -242,7 +246,9 @@ def _export_menu(settings: Settings) -> int:
         regime=regime,
         encargo_mode=encargo_mode,
         search=search,
+        progress_callback=show_progress,
     )
+    print()
     print(_paint("\n  STATUS  : EXPORTAÇÃO CONCLUÍDA", GREEN))
     print(_paint(f"  ARQUIVOS: {len(generated)}", GREEN))
     for path in generated:
