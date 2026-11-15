@@ -18,7 +18,7 @@
  <path d="M-10-120h20M0-130v20" stroke="#60E6FF" stroke-width="4" stroke-linecap="round"/>
 </g>
 <g fill="none" stroke="#21D4FD" stroke-width="2" opacity=".35"><path d="M650 60h100v45h60M680 310h100v-40h60M1050 55v55h70"/></g>
-<text x="76" y="112" fill="#60E6FF" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700" letter-spacing="5">NR TECH · ENGENHARIA DE CUSTOS</text>
+<text x="76" y="112" fill="#60E6FF" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700" letter-spacing="5">GET-SINAPI · ENGENHARIA DE CUSTOS</text>
 <text x="70" y="205" fill="#EAF7FF" font-family="Inter,Arial,sans-serif" font-size="78" font-weight="800" letter-spacing="-3">GET-SINAPI</text>
 <rect x="76" y="231" width="130" height="5" rx="2.5" fill="url(#cyan)"/>
 <text x="76" y="280" fill="#B9D9EA" font-family="Inter,Arial,sans-serif" font-size="23">PLATAFORMA DESKTOP PRIVADA</text>
