@@ -11,7 +11,6 @@ from pathlib import Path
 from getsinapi import __version__
 from getsinapi.config import Settings
 
-
 CYAN = "\033[96m"
 BLUE = "\033[94m"
 YELLOW = "\033[93m"
