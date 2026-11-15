@@ -12,10 +12,10 @@ from getsinapi import __version__
 from getsinapi.config import Settings
 
 
-CYAN = "\\033[96m"
-BLUE = "\\033[94m"
-YELLOW = "\\033[93m"
-RESET = "\\033[0m"
+CYAN = "\033[96m"
+BLUE = "\033[94m"
+YELLOW = "\033[93m"
+RESET = "\033[0m"
 
 
 def _enable_ansi() -> bool:
@@ -156,6 +156,9 @@ def _export_menu(settings: Settings) -> int:
     try:
         indexes = _parse_multi_selection(reference_choice, len(refs))
         references = None if indexes is None else [refs[index - 1] for index in indexes]
+    except ValueError as exc:
+        print(_paint(f"Competência inválida: {exc}", YELLOW))
+        return 2
 
     uf = input("\nUF (duas letras) ou ENTER para todas: ").strip().upper() or None
     if uf and (len(uf) != 2 or not uf.isalpha()):
