@@ -152,7 +152,7 @@ O comando consulta a base SQLite local já carregada; não refaz o download dos 
 
 Requisitos: Python 3.11+ e Node.js 20+.
 
-### Backend
+### Serviço de aplicação
 
 ```powershell
 py -3.11 -m venv .venv
@@ -167,7 +167,7 @@ API local: `http://127.0.0.1:8000`
 Health check: `http://127.0.0.1:8000/api/health`  
 Documentação OpenAPI: `http://127.0.0.1:8000/docs`
 
-### Frontend
+### Interface
 
 Em outro terminal:
 
