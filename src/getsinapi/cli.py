@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import platform
 import sys
+from pathlib import Path
 
 from getsinapi import __version__
 from getsinapi.config import Settings
@@ -115,15 +115,17 @@ def _export_menu(settings: Settings) -> int:
         desktop_data / "getsinapi.sqlite3",
         settings.data_dir / "getsinapi.sqlite3",
     ]
-    database = next((path for path in candidates if path and path.is_file()),
-                    desktop_data / "getsinapi.sqlite3" if os.name == "nt" else settings.data_dir / "getsinapi.sqlite3")
+    database = next(
+        (path for path in candidates if path and path.is_file()),
+        desktop_data / "getsinapi.sqlite3" if os.name == "nt" else settings.data_dir / "getsinapi.sqlite3",
+    )
     if not database.is_file():
         print(f"Banco SINAPI não encontrado: {database}")
         print("Inicialize a base com os comandos download, extract, parse e load.")
         return 2
 
     _show_header()
-    print(_paint("\n01  |  MODO DE EXPORTAÇÃO", BLUE))
+    print(_paint("\\n01  |  MODO DE EXPORTAÇÃO", BLUE))
     print("-" * 68)
     print("  [1] Exportar tudo — insumos, composições e componentes")
     print("  [2] Personalizar categorias")
@@ -131,7 +133,7 @@ def _export_menu(settings: Settings) -> int:
 
     categories = ["INSUMO", "COMPOSICAO", "COMPONENTE"]
     if mode == "2":
-        print(_paint("\n02  |  CATEGORIAS", BLUE))
+        print(_paint("\\n02  |  CATEGORIAS", BLUE))
         print("  [1] Insumos       [2] Composições       [3] Componentes")
         selected = input("Categorias (ex.: 1,3): ").strip()
         mapping = {"1": "INSUMO", "2": "COMPOSICAO", "3": "COMPONENTE"}
@@ -148,7 +150,7 @@ def _export_menu(settings: Settings) -> int:
     if not refs:
         print("A base SQLite não possui competências carregadas.")
         return 2
-    print(_paint("\n03  |  COMPETÊNCIAS DISPONÍVEIS", BLUE))
+    print(_paint("\\n03  |  COMPETÊNCIAS DISPONÍVEIS", BLUE))
     for index, reference in enumerate(refs, start=1):
         print(_paint(f"  [{index:>2}] {reference}", CYAN))
     print(_paint("  [ A] Todas as competências", BLUE))
@@ -160,7 +162,7 @@ def _export_menu(settings: Settings) -> int:
         print(_paint(f"Competência inválida: {exc}", YELLOW))
         return 2
 
-    uf = input("\nUF (duas letras) ou ENTER para todas: ").strip().upper() or None
+    uf = input("\\nUF (duas letras) ou ENTER para todas: ").strip().upper() or None
     if uf and (len(uf) != 2 or not uf.isalpha()):
         print("UF inválida.")
         return 2
@@ -189,7 +191,7 @@ def _export_menu(settings: Settings) -> int:
     output_text = input(f"Pasta de destino [{default_output}]: ").strip()
     output_dir = Path(output_text).expanduser() if output_text else default_output
 
-    print(_paint("\n04  |  PROCESSAMENTO", BLUE))
+    print(_paint("\\n04  |  PROCESSAMENTO", BLUE))
     print("Iniciando extração da base local...")
     generated = export_catalog(
         database,
@@ -202,7 +204,7 @@ def _export_menu(settings: Settings) -> int:
         encargo_mode=encargo_mode,
         search=search,
     )
-    print(_paint(f"\nSTATUS: EXPORTAÇÃO CONCLUÍDA | ARQUIVOS: {len(generated)}", CYAN))
+    print(_paint(f"\\nSTATUS: EXPORTAÇÃO CONCLUÍDA | ARQUIVOS: {len(generated)}", CYAN))
     for path in generated:
         print(f"  • {path}")
     print(_paint("\\nGET-SINAPI | CAIXA — NR TECH", BLUE))
