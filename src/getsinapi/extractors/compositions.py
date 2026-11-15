@@ -73,6 +73,7 @@ class CompositionItemRecord:
     source_file: str
     source_sheet: str
     source_row: int
+    status: CompositionStatus | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +178,13 @@ def parse_analytic_compositions(
                 warnings.append(f"Linha {row_number}: coeficiente negativo ignorado.")
                 continue
 
+            item_status = STATUS_MAP.get(status_value)
+            if status_value and item_status is None:
+                warnings.append(
+                    f"Linha {row_number}: situação de componente não reconhecida: "
+                    f"{status_value!r}."
+                )
+
             items.append(CompositionItemRecord(
                 reference=reference,
                 composition_code=parent_code,
@@ -188,6 +196,7 @@ def parse_analytic_compositions(
                 source_file=path.name,
                 source_sheet=sheet_name,
                 source_row=row_number,
+                status=item_status,
             ))
 
         orphan_items = [item for item in items if item.composition_code not in known_compositions]

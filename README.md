@@ -1,226 +1,143 @@
 <div align="center">
 
-<img src="assets/gets-inapi-hero.svg" alt="GET-SINAPI — Engenharia de dados para custos da construção civil" width="100%">
+<img src="assets/gets-inapi-hero.svg" alt="GET-SINAPI — plataforma privada para consulta e análise de custos SINAPI" width="100%">
 
 # GET-SINAPI
 
-### ENGENHARIA DE DADOS · INTELIGÊNCIA DE CUSTOS · CONSTRUÇÃO CIVIL
+### PLATAFORMA DESKTOP · CONSULTA SINAPI · ENGENHARIA DE CUSTOS
 
-Pipeline para coleta, validação, normalização e disponibilização de dados oficiais do SINAPI.
+Aplicação privada para Windows que transforma publicações oficiais da CAIXA/SINAPI em consultas, análises, comparações e orçamentos rastreáveis.
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-1677C8?style=for-the-badge&logo=python&logoColor=white)
-![Data Engineering](https://img.shields.io/badge/Data_Engineering-Bronze%20%7C%20Silver%20%7C%20Gold-087BCE?style=for-the-badge)
-![Storage](https://img.shields.io/badge/Formats-XLSX%20%7C%20JSON%20%7C%20Parquet-21B8D5?style=for-the-badge)
-![Tests](https://img.shields.io/badge/Tests-Pytest-0B8F74?style=for-the-badge&logo=pytest&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-21D4FD?style=for-the-badge)
+![React](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-087BCE?style=for-the-badge&logo=react&logoColor=white)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![SQLite](https://img.shields.io/badge/Database-SQLite-21B8D5?style=for-the-badge&logo=sqlite&logoColor=white)
+![Windows](https://img.shields.io/badge/Platform-Windows-1677C8?style=for-the-badge&logo=windows&logoColor=white)
 
-**Dados oficiais. Engenharia rastreável. Inteligência para decisões.**
+**Dados oficiais. Processamento local. Decisões de engenharia com rastreabilidade.**
 
 </div>
 
 ---
 
-## Visão do produto
+## Visão geral
 
-O GET-SINAPI é uma plataforma de engenharia de dados concebida para transformar publicações mensais do SINAPI em conjuntos estruturados, verificáveis e consultáveis.
+O GET-SINAPI é um aplicativo desktop privado para Windows. Ele reúne uma interface React, uma API local FastAPI, processamento Python e persistência SQLite. O launcher inicia os serviços na própria máquina e abre a plataforma no navegador padrão; o usuário não precisa iniciar manualmente os servidores.
 
-A solução foi projetada para preservar a origem de cada informação, manter o histórico por competência e UF e distinguir corretamente preços, custos, coeficientes, encargos e situações de disponibilidade.
+O produto utiliza o PulseSINAPI como referência de experiência funcional, mas mantém pipeline e regras próprias para ingestão, qualidade, cálculo e rastreabilidade dos dados oficiais.
 
-O objetivo é oferecer uma fundação confiável para análises de custos, composição de orçamentos, comparação histórica e integração com sistemas de engenharia.
+> **Distribuição atual:** executável Windows privado. A aplicação não é um serviço web público nem possui autenticação centralizada na nuvem.
 
-## Capacidades da plataforma
+## Funcionalidades disponíveis na aplicação
 
-<table>
-<tr>
-<td width="50%">
+- Dashboard com indicadores derivados da base efetivamente carregada.
+- Consulta de insumos com pesquisa, filtros e paginação.
+- Consulta de composições e detalhamento de componentes e coeficientes.
+- Comparação de preços por UF e competência, conforme cobertura disponível.
+- Cesta de orçamento e cálculo de totais.
+- Histórico das competências presentes na base local.
+- Relatórios e exportações disponibilizados pela versão atual.
+- Atualização da base com acompanhamento de estado e progresso.
+- Integridade, auditoria e informações de origem dos dados.
+- Gestão local de contas de acesso.
 
-### Coleta e ingestão
-- Descoberta e download de pacotes oficiais.
-- Validação do arquivo recebido.
-- Identificação por competência.
-- Cálculo de SHA-256.
-- Manifestos de coleta.
+A disponibilidade de resultados depende das competências e dos arquivos oficiais efetivamente baixados, processados e validados. O sistema não deve apresentar dados ausentes como se fossem preços iguais a zero.
 
-</td>
-<td width="50%">
-
-### Extração e catalogação
-- Extração controlada de arquivos ZIP.
-- Proteção contra path traversal.
-- Inventário de workbooks e abas.
-- Registro de dimensões e metadados.
-- Separação entre origem e staging.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### Tratamento e qualidade
-- Normalização de valores e textos.
-- Interpretação de preços e estados.
-- Validação de registros.
-- Preservação de ausências e zeros.
-- Rastreabilidade de rejeições.
-
-</td>
-<td width="50%">
-
-### Consulta e inteligência
-- Histórico por competência e UF.
-- Consulta de insumos e composições.
-- Comparativos de custos.
-- Exportações analíticas.
-- API e integração com aplicações.
-
-</td>
-</tr>
-</table>
-
-> **Transparência de implementação:** coleta inicial, extração segura, catálogo de planilhas, parsers iniciais das matrizes ISD/ICD/ISE e do relatório Analítico, normalização Silver e motor de cálculo recursivo já possuem implementação. Persistência histórica em banco, integração dos cálculos à API e painéis analíticos continuam em desenvolvimento. Os recursos planejados não são apresentados como funcionalidades já disponíveis.
-
-## Arquitetura de dados
+## Capturas e arquitetura
 
 <p align="center">
-  <img src="assets/gets-inapi-architecture.svg" alt="Arquitetura Bronze, Staging, Silver e Gold do GET-SINAPI" width="100%">
+  <img src="assets/gets-inapi-architecture.svg" alt="Arquitetura local do GET-SINAPI: launcher Windows, React, FastAPI, Python e SQLite" width="100%">
 </p>
 
-| Camada | Responsabilidade | Diretriz |
+A arquitetura é inteiramente local na distribuição atual:
+
+| Componente | Tecnologia | Responsabilidade |
 |---|---|---|
-| Bronze | Pacotes oficiais originais | Imutabilidade, checksum e proveniência |
-| Staging | Extração temporária | Isolamento por competência e execução |
-| Silver | Dados normalizados | Tipagem, validação e rastreabilidade |
-| Gold | Dados consolidados | Consulta, análise e integração |
-| API | Acesso programático | Contratos explícitos e filtros |
+| Aplicação desktop | Python / PyInstaller | Inicialização e encerramento dos serviços |
+| Interface | React + Vite + TypeScript | Navegação, filtros, tabelas e visualizações |
+| API | FastAPI | Consultas, autenticação local e operações |
+| Processamento | Python | Coleta, validação, normalização e cálculos |
+| Persistência | SQLite | Dados SINAPI e informações locais |
+| Autenticação | PBKDF2 + sessão local | Login e controle de contas neste computador |
 
-## Dados SINAPI contemplados no modelo
+## Autenticação local
 
-A auditoria dos arquivos oficiais XLSX identificou estruturas para:
+O primeiro acesso permite configurar a conta administradora. O identificador pode ser o e-mail do usuário, acompanhado de uma senha com no mínimo 12 caracteres.
 
-| Domínio | Conteúdo |
-|---|---|
-| Insumos | Código, descrição, unidade, classificação e origem do preço |
-| Preços | Valores por UF, competência e relatório de referência |
-| Composições | Cadastro, grupo, descrição, unidade e situação |
-| Itens de composição | Insumos, composições subordinadas e coeficientes |
-| Custos | Custos publicados por UF e modalidade de encargos |
-| Mão de obra | Valores por composição, UF e condição de desoneração |
-| Coeficientes técnicos | Famílias, itens, categorias e coeficientes por UF |
-| Manutenções | Eventos de criação e atualização publicados pela fonte |
+- O primeiro usuário cadastrado recebe o perfil de administrador.
+- O administrador pode cadastrar outras contas locais pela área de gestão de acessos.
+- As senhas não são armazenadas em texto puro: o backend deriva o hash com PBKDF2-HMAC-SHA256 e salt individual.
+- A sessão local tem duração de até oito horas.
+- Os registros de autenticação são mantidos no arquivo `security/users.json`, dentro do diretório de dados da aplicação.
 
-A modelagem distingue regime de desoneração de modalidade de encargos sociais. Também preserva preço informado como zero, informação ausente e item não pesquisado como estados distintos.
+**Limite importante:** as contas são locais e pertencem ao diretório de dados daquele computador. Cadastrar usuários em uma instalação não cria automaticamente contas nas instalações dos demais engenheiros. Ainda não há login centralizado, revogação remota, sincronização de contas ou compartilhamento central de orçamentos.
 
-## Princípios de integridade
+## Armazenamento e diretório de dados
 
-- Fonte oficial como autoridade dos dados publicados.
-- Nenhum dado sintético ou preenchimento artificial em produção.
-- Histórico preservado por competência.
-- Reprocessamento idempotente.
-- Valores monetários e coeficientes com precisão decimal.
-- Códigos oficiais preservados como identificadores.
-- Proveniência até arquivo, planilha e linha de origem.
-- Extração segura e validação de integridade dos arquivos.
-- Separação entre dado oficial e cálculo derivado pelo sistema.
+A aplicação utiliza SQLite local. O diretório de dados pode ser definido por configuração de ambiente; na distribuição desktop, o launcher prepara o ambiente de execução e mantém logs locais.
 
-## Instalação e desenvolvimento
+Não compartilhe o arquivo de banco ou o diretório de autenticação contendo dados operacionais sem avaliar previamente as implicações de segurança e consistência. Para vários engenheiros trabalharem com a mesma base e os mesmos orçamentos, será necessária uma camada de sincronização central — não faz parte do modelo atual.
 
-Requisitos: Python 3.11 ou superior.
+## Instalação e utilização
 
-~~~powershell
-git clone https://github.com/nrdataanalysis-1908/GET-SINAPI.git
-cd GET-SINAPI
+1. Baixe o pacote Windows disponibilizado na área de Releases ou no artefato de build autorizado.
+2. Extraia o ZIP em uma pasta local.
+3. Execute `GET-SINAPI-V3.exe`.
+4. No primeiro acesso, configure o usuário administrador e a senha.
+5. Nos acessos seguintes, entre com as credenciais locais.
 
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+O launcher inicia a API e o frontend localmente, aguarda os serviços responderem e então abre a interface no navegador padrão.
 
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-~~~
+## Exportação em lote pelo terminal
 
-### Verificação de qualidade
+Além do executável desktop, o pacote Python disponibiliza a interface de terminal pelo comando `getsinapi`. O menu interativo permite selecionar:
 
-~~~powershell
-ruff check .
-pytest -v
-~~~
+- Todas as categorias ou apenas insumos, composições e componentes.
+- Uma competência específica ou todas as competências carregadas.
+- Uma UF específica ou todas as UFs disponíveis.
+- Regime de desoneração e modalidade de encargos.
+- Pesquisa por código ou descrição.
+- Saída em Excel (.xlsx), CSV ou nos dois formatos.
 
-### Coleta por competência
+A exportação completa gera uma visão consolidada com os registros selecionados e arquivos/abas individualizados por categoria. No Excel, o consolidado e cada categoria ficam em abas próprias; no CSV, são gerados um arquivo consolidado e arquivos separados por categoria. Os CSVs usam UTF-8 com BOM e delimitador ponto e vírgula para melhor abertura no Excel em configurações regionais brasileiras.
 
-~~~powershell
-getsinapi download --reference 2026-09
-~~~
+### Instalação e execução
 
-### Extração do pacote
-
-~~~powershell
-getsinapi extract --archive "data\raw\SINAPI-2026-09-formato-xlsx.zip" --reference 2026-09
-~~~
-
-Os nomes efetivos dos arquivos devem corresponder ao pacote baixado e ao manifesto gerado.
-
-## Stack tecnológica
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-1677C8?style=flat-square&logo=python&logoColor=white">
-  <img src="https://img.shields.io/badge/Pandas-150458?style=flat-square&logo=pandas&logoColor=white">
-  <img src="https://img.shields.io/badge/SQLAlchemy-D71F00?style=flat-square&logo=sqlalchemy&logoColor=white">
-  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
-  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white">
-  <img src="https://img.shields.io/badge/Parquet-50ABF1?style=flat-square">
-  <img src="https://img.shields.io/badge/Pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white">
-  <img src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white">
-</p>
-
-A stack acima representa tecnologias incorporadas ou previstas na arquitetura. A presença de um componente na lista não significa que todos os módulos estejam integrados ou publicados na versão atual.
-
-## Evolução do produto
-
-| Frente | Situação |
-|---|---|
-| Fundação Python, CLI e configuração | Implementada |
-| Coleta e validação inicial de pacotes | Implementação inicial |
-| Extração segura e catálogo XLSX | Implementada |
-| Auditoria dos layouts oficiais | Em andamento |
-| Parsers de preços ISD/ICD/ISE e relatório Analítico | Implementação inicial |
-| Motor de cálculo recursivo de composições e orçamento | Implementação inicial |\n| Persistência histórica SQLite e rotas de consulta | Implementação inicial |
-| Migração PostgreSQL/Supabase e histórico analítico avançado | Planejado |
-| API de consulta | Planejado |
-| Exportação analítica e dashboards | Planejado |
-| Orquestração e observabilidade | Planejado |
-
-## Licença e uso dos dados
-
-O código-fonte do GET-SINAPI é distribuído sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE).
-
-A licença do software não altera os direitos, termos de uso ou condições aplicáveis aos arquivos, marcas e dados de terceiros. Os dados oficiais permanecem atribuídos às respectivas fontes.
-
----
-
-<div align="center">
-
-**GET-SINAPI**  
-NR Data Analysis · Data Engineering
-
-*Precisão na origem. Consistência no processamento. Confiança na consulta.*
-
-</div>
-
-## Aplicação web (React + FastAPI)
-
-O repositório contém o primeiro esqueleto executável da aplicação web. O dashboard identifica a disponibilidade real da API e distingue serviços implementados de componentes ainda não conectados. Indicadores sem dados persistidos permanecem vazios; não são preenchidos com valores fictícios.
-
-### Iniciar a API
-
-Na raiz do projeto, com o ambiente virtual ativado:
+Após a publicação da versão que contém essa funcionalidade no PyPI:
 
 ```powershell
+python -m pip install --upgrade get-sinapi
+getsinapi
+```
+
+Ou execute diretamente o menu de exportação:
+
+```powershell
+getsinapi export
+```
+
+O comando consulta a base SQLite local já carregada; não refaz o download dos pacotes oficiais a cada exportação. Na instalação desktop, utiliza o mesmo diretório de dados configurado pelo launcher. Em instalações independentes, defina `GETSINAPI_DATABASE_PATH` para apontar ao arquivo `getsinapi.sqlite3` correto. A funcionalidade de terminal não substitui nem altera o executável Windows.
+
+## Desenvolvimento local
+
+Requisitos: Python 3.11+ e Node.js 20+.
+
+### Backend
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -e ".[dev]"
+$env:GETSINAPI_DATABASE_PATH = "data/getsinapi.sqlite3"
 uvicorn getsinapi.api.main:app --reload
 ```
 
-A API ficará disponível em `http://127.0.0.1:8000` e a verificação de saúde em `http://127.0.0.1:8000/api/health`.
+API local: `http://127.0.0.1:8000`  
+Health check: `http://127.0.0.1:8000/api/health`  
+Documentação OpenAPI: `http://127.0.0.1:8000/docs`
 
-### Iniciar o frontend
+### Frontend
 
 Em outro terminal:
 
@@ -230,6 +147,61 @@ npm install
 npm run dev
 ```
 
-Abra `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local na porta 8000.
+Frontend de desenvolvimento: `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local.
 
-> Estado atual: a tela inicial e o endpoint de saúde estão implementados. PostgreSQL, parsers de negócio, consultas de insumos/composições e indicadores reais ainda serão integrados nas próximas etapas.
+### Qualidade e testes
+
+```powershell
+ruff check .
+pytest -v
+```
+
+O workflow Windows também compila o frontend, empacota a aplicação com PyInstaller e executa um smoke test da interface e do endpoint de saúde antes de publicar o artefato.
+
+## Pipeline e integridade dos dados
+
+| Camada | Responsabilidade |
+|---|---|
+| Bronze | Preservação dos pacotes oficiais recebidos |
+| Staging | Extração controlada e inventário dos arquivos |
+| Silver | Normalização, tipagem e validação |
+| Gold | Estruturas consolidadas para consulta e análise |
+| Aplicação | Consulta, comparação, cálculo e orçamento |
+
+Princípios:
+
+- Publicações oficiais da CAIXA como fonte de referência.
+- Nenhum dado sintético em produção.
+- Distinção entre zero publicado, valor ausente e falha de extração.
+- Preservação de competência, UF, regime e origem.
+- Valores monetários e coeficientes tratados com precisão decimal.
+- Atualizações incrementais e idempotentes, preservando o histórico válido.
+- Rastreabilidade até publicação, arquivo e referência de origem, conforme metadados disponíveis.
+
+## Cobertura e limitações conhecidas
+
+- A cobertura histórica depende dos pacotes efetivamente publicados, coletados e processados.
+- Os layouts legados anteriores a 2025 exigem tratamento específico; não se deve presumir cobertura histórica integral.
+- O armazenamento é SQLite local.
+- A autenticação é local, sem provedor externo.
+- Não há sincronização de dados ou orçamentos entre computadores.
+- A distribuição atual é desktop Windows; uma versão web hospedada não faz parte do escopo vigente.
+
+## Stack tecnológica
+
+Python · React · TypeScript · Vite · FastAPI · SQLite · SQLAlchemy · Pandas · Pytest · Ruff · PyInstaller · GitHub Actions.
+
+## Licença e dados de terceiros
+
+O código-fonte é distribuído sob a licença MIT, conforme o arquivo [LICENSE](LICENSE). Essa licença não altera os direitos, termos de uso ou atribuição aplicáveis às publicações, marcas e dados de terceiros, incluindo os dados oficiais do SINAPI.
+
+---
+
+<div align="center">
+
+**GET-SINAPI**  
+NR TECH · Engenharia de Dados e Custos
+
+*Precisão na origem. Consistência no processamento. Confiança na consulta.*
+
+</div>

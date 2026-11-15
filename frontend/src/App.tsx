@@ -1,259 +1,94 @@
-import { FormEvent, useEffect, useState } from "react";
-import {
-  Activity, Boxes, ChartColumn, CircleHelp, Database, Gauge, Layers3,
-  Search, Settings2, ShieldCheck, Calculator, Plus, Trash2, MapPin, ChevronRight,
-} from "lucide-react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Activity, Search, RefreshCw, ChevronLeft, ChevronRight, Database, LayoutDashboard, Boxes, Calculator, GitCompareArrows, History, Download, Plus, Trash2, Filter, Menu, X, LogOut, LockKeyhole, ExternalLink } from "lucide-react";
 
-type ApiState = "checking" | "online" | "offline";
-type Page = "overview" | "insumos" | "composicoes" | "orcamento";
-type Reference = { reference: string; source_file: string; loaded_at: string };
-type Summary = {
-  reference: string; input_prices: number; compositions: number;
-  composition_items: number; states: number; unavailable_prices: number;
-};
-type InputPrice = {
-  code: string; description: string; unit: string; uf: string;
-  regime: string | null; encargo_mode: string; table_type: string;
-  price: string | null; status: string; price_origin: string | null;
-};
-type Composition = { code: string; description: string; unit: string; status: string | null };
-type CostResult = {
-  composition_code: string; total: number | null; status: string;
-  issues: string[]; lines: Array<{ item_code: string; description: string; coefficient: number; unit_price: number | null; total: number | null; status: string }>;
-};
-type BudgetRow = { code: string; item_type: "INSUMO" | "COMPOSICAO"; quantity: string };
-type BudgetResult = { total: number | null; status: string; issues: string[]; lines: Array<{ code: string; item_type: string; quantity: number; unit_cost: number | null; total: number | null; status: string }> };
-
-const navigation: Array<{ id: Page; label: string; icon: typeof Gauge }> = [
-  { id: "overview", label: "Visão geral", icon: Gauge },
-  { id: "insumos", label: "Insumos", icon: Boxes },
-  { id: "composicoes", label: "Composições", icon: Layers3 },
-  { id: "orcamento", label: "Orçamento", icon: Calculator },
+type Row={reference:string;record_type:string;code:string;description:string;unit:string;uf:string|null;regime:string|null;table_type:string;value:string|null;value_type:string|null;composition_code:string|null;status:string|null;source_file:string;source_sheet:string;source_row:number};
+type Catalog={items:Row[];total:number;limit:number;offset:number};
+type Analytics={reference:string|null;references:{reference:string;source_file:string;loaded_at:string}[];totals:{input_prices:number;compositions:number;composition_items:number;states:number;unavailable_prices:number};by_state:{uf:string;observations:number}[];by_reference:{reference:string;input_prices:number;compositions:number}[];by_table:{table_type:string;observations:number}[];status:{status:string;quantity:number}[]};
+type Page="dashboard"|"catalog"|"compositions"|"compare"|"budget"|"history"|"reports"|"audit"|"users";
+const STATES=["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+const nav:{id:Page;label:string;icon:typeof Activity;group:string}[]=[
+{id:"dashboard",label:"Dashboard",icon:LayoutDashboard,group:"VISÃO GERAL"},
+{id:"catalog",label:"Insumos",icon:Database,group:"CONSULTAS"},
+{id:"compositions",label:"Composições",icon:Boxes,group:"CONSULTAS"},
+{id:"compare",label:"Comparar preços",icon:GitCompareArrows,group:"ANÁLISE"},
+{id:"budget",label:"Orçamento",icon:Calculator,group:"ANÁLISE"},
+{id:"history",label:"Histórico e base",icon:History,group:"BASE SINAPI"},
 ];
-
-const money = (value: number | string | null | undefined) =>
-  value === null || value === undefined ? "—" : Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const number = (value: number | undefined) => (value ?? 0).toLocaleString("pt-BR");
-
-function App() {
-  const [page, setPage] = useState<Page>("overview");
-  const [apiState, setApiState] = useState<ApiState>("checking");
-  const [references, setReferences] = useState<Reference[]>([]);
-  const [reference, setReference] = useState("");
-  const [uf, setUf] = useState("MG");
-  const [regime, setRegime] = useState("nao_desonerado");
-  const [encargoMode, setEncargoMode] = useState("com_encargos");
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [search, setSearch] = useState("");
-  const [prices, setPrices] = useState<InputPrice[]>([]);
-  const [compositions, setCompositions] = useState<Composition[]>([]);
-  const [selectedCost, setSelectedCost] = useState<CostResult | null>(null);
-  const [budgetRows, setBudgetRows] = useState<BudgetRow[]>([{ code: "", item_type: "COMPOSICAO", quantity: "1" }]);
-  const [budgetResult, setBudgetResult] = useState<BudgetResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [lastCheck, setLastCheck] = useState("Aguardando verificação");
-
-  const apiLabel = apiState === "online" ? "API operacional" : apiState === "offline" ? "API desconectada" : "Verificando API";
-
-  async function request<T>(url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, {
-      ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.detail ?? "Não foi possível consultar a API.");
-    return payload as T;
-  }
-
-  async function loadSummary(ref = reference) {
-    if (!ref) return;
+const fmt=(n:number)=>n.toLocaleString("pt-BR");
+const brl=(n:number)=>n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+async function api<T>(url:string,init?:RequestInit):Promise<T>{const r=await fetch(url,{cache:"no-store",...init});const d=await r.json();if(!r.ok)throw new Error(d.detail||"Falha na operação.");return d as T;}
+function App(){
+const [page,setPage]=useState<Page>("dashboard"),[mobile,setMobile]=useState(false),[online,setOnline]=useState(false),[error,setError]=useState("");
+const [bootstrapState,setBootstrapState]=useState<{status?:string;stage?:string;message?:string;percent?:number;current_reference?:string;reference?:string;error?:string}>({}),[updateBusy,setUpdateBusy]=useState(false);const completionHandled=useRef(false);
+const [authReady,setAuthReady]=useState(false),[authConfigured,setAuthConfigured]=useState(false),[authenticated,setAuthenticated]=useState(false),[isAdmin,setIsAdmin]=useState(false),[authUser,setAuthUser]=useState(""),[authPassword,setAuthPassword]=useState(""),[authBusy,setAuthBusy]=useState(false);
+const [a,setA]=useState<Analytics|null>(null),[refs,setRefs]=useState<string[]>([]),[reference,setReference]=useState("");
+const [catalog,setCatalog]=useState<Catalog>({items:[],total:0,limit:100,offset:0}),[search,setSearch]=useState(""),[uf,setUf]=useState("MG"),[type,setType]=useState("INSUMO"),[regime,setRegime]=useState(""),[table,setTable]=useState(""),[min,setMin]=useState(""),[max,setMax]=useState(""),[priced,setPriced]=useState("all"),[advanced,setAdvanced]=useState(false),[busy,setBusy]=useState(false);
+const [composition,setComposition]=useState(""),[components,setComponents]=useState<Record<string,unknown>[]>([]),[compositionResults,setCompositionResults]=useState<Record<string,unknown>[]>([]),[compositionCost,setCompositionCost]=useState<Record<string,unknown>|null>(null);
+const [budget,setBudget]=useState<{code:string;item_type:string;quantity:string}[]>([{code:"",item_type:"COMPOSICAO",quantity:"1"}]),[budgetResult,setBudgetResult]=useState<Record<string,unknown>|null>(null);
+const [compareCode,setCompareCode]=useState(""),[compareRows,setCompareRows]=useState<Record<string,unknown>[]>([]);
+const [reportFormat,setReportFormat]=useState("csv");
+const [userList,setUserList]=useState<{username:string;created_at:string;role:string}[]>([]),[newUsername,setNewUsername]=useState(""),[newPassword,setNewPassword]=useState("");
+const loadAnalytics=useCallback(async()=>{try{const d=await api<Analytics>("/api/analytics");setA(d);setRefs(d.references.map(x=>x.reference));setReference(d.reference||"");setOnline(true);}catch(e){setOnline(false);setError(e instanceof Error?e.message:"API indisponível.");}},[]);
+const loadCatalog=useCallback(async(offset=0)=>{setBusy(true);setError("");try{const p=new URLSearchParams({limit:"100",offset:String(offset)});if(search.trim().length>=2)p.set("search",search.trim());if(reference)p.set("reference",reference);if(uf)p.set("uf",uf);if(type)p.set("record_type",type);if(regime)p.set("regime",regime);if(table)p.set("table_type",table);if(min)p.set("min_value",min);if(max)p.set("max_value",max);if(priced!=="all")p.set("priced_only",priced==="yes"?"true":"false");const d=await api<Catalog>("/api/catalog/advanced?"+p);setCatalog(d);setOnline(true);}catch(e){setError(e instanceof Error?e.message:"Falha ao consultar catálogo.");}finally{setBusy(false);}},[search,reference,uf,type,regime,table,min,max,priced]);
+useEffect(()=>{void api<{configured:boolean;authenticated:boolean;username:string|null;role:string}>("/api/auth/status").then(s=>{setAuthConfigured(s.configured);setAuthenticated(s.authenticated);setAuthUser(s.username||"");setIsAdmin(s.role==="admin");}).catch(e=>setError(e instanceof Error?e.message:"Falha na autenticação local.")).finally(()=>setAuthReady(true));},[]);
+useEffect(()=>{if(authReady&&authenticated)void loadAnalytics();},[authReady,authenticated,loadAnalytics]);
+useEffect(()=>{if(!authReady||!authenticated||a)return;const timer=window.setInterval(()=>void loadAnalytics(),5000);return()=>window.clearInterval(timer);},[authReady,authenticated,a,loadAnalytics]);
+useEffect(() => {
+  if (!authReady || !authenticated) return;
+  let active = true;
+  const refresh = async () => {
     try {
-      const data = await request<Summary>(`/api/summary?reference=${encodeURIComponent(ref)}`);
-      setSummary(data);
-      setError("");
-    } catch (cause) {
-      setSummary(null);
-      setError(cause instanceof Error ? cause.message : "Falha ao consultar resumo.");
-    }
-  }
-
-  useEffect(() => {
-    let active = true;
-    async function initialize() {
-      try {
-        const health = await request<{ status: string }>("/api/health");
-        if (!active) return;
-        setApiState(health.status === "ok" ? "online" : "offline");
-        setLastCheck(new Date().toLocaleTimeString("pt-BR"));
-        try {
-          const refs = await request<Reference[]>("/api/references");
-          if (!active) return;
-          setReferences(refs);
-          if (refs.length) setReference(refs[0].reference);
-        } catch (cause) {
-          if (!active) return;
-          setError(cause instanceof Error ? cause.message : "Banco histórico ainda não inicializado.");
-        }
-      } catch (cause) {
-        if (!active) return;
-        setApiState("offline");
-        setError(cause instanceof Error ? cause.message : "API indisponível.");
-        setLastCheck(new Date().toLocaleTimeString("pt-BR"));
+      const response = await fetch("/bootstrap-status", { cache: "no-store" });
+      if (!response.ok) return;
+      const state = await response.json();
+      if (!active) return;
+      setBootstrapState(state);
+      const completed = state.stage === "complete" || state.stage === "partial" || ["updated", "up_to_date"].includes(state.status);
+      if (completed && !completionHandled.current) {
+        completionHandled.current = true;
+        void loadAnalytics();
+        if (page === "catalog") void loadCatalog(0);
       }
+    } catch {
+      if (active) setBootstrapState({ status: "unavailable", message: "Estado da atualização indisponível." });
     }
-    void initialize();
-    return () => { active = false; };
-  }, []);
+  };
+  void refresh();
+  const timer = window.setInterval(() => void refresh(), 2500);
+  return () => {
+    active = false;
+    window.clearInterval(timer);
+  };
+}, [authReady, authenticated, loadAnalytics, loadCatalog, page]);
+const updateDatabase=async()=>{completionHandled.current=false;setUpdateBusy(true);setError("");try{const r=await fetch("/bootstrap-retry",{method:"POST"});if(!r.ok)throw new Error("Não foi possível iniciar a atualização da base.");setBootstrapState({status:"running",stage:"starting",message:"Atualização solicitada."});}catch(e){setError(e instanceof Error?e.message:"Falha ao solicitar atualização.");}finally{setUpdateBusy(false);}};
+const submitAuth=async(e:FormEvent)=>{e.preventDefault();setAuthBusy(true);setError("");try{const route=authConfigured?"/api/auth/login":"/api/auth/setup";const result=await api<{username:string;role:string}>(route,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:authUser,password:authPassword})});setAuthConfigured(true);setAuthenticated(true);setIsAdmin(result.role==="admin");setAuthUser(result.username||authUser);setAuthPassword("");}catch(e){setError(e instanceof Error?e.message:"Não foi possível autenticar.");}finally{setAuthBusy(false);}};
+const logout=async()=>{try{await api("/api/auth/logout",{method:"POST"});}finally{setAuthenticated(false);setPage("dashboard");setA(null);}};
+useEffect(()=>{if(page==="catalog")void loadCatalog(0);if(page==="users")void api<{users:{username:string;created_at:string;role:string}[]}>("/api/auth/users").then(x=>setUserList(x.users)).catch(e=>setError(e instanceof Error?e.message:"Falha ao consultar usuários."));},[page]);
+const selected=reference||a?.reference||"",total=(a?.totals.input_prices||0)+(a?.totals.compositions||0)+(a?.totals.composition_items||0);
+const pageNo=Math.floor(catalog.offset/100)+1,lastPage=Math.max(1,Math.ceil(catalog.total/100));
+const title=nav.find(x=>x.id===page)?.label||"Visão executiva";
+const exportData=(format:string)=>{const p=new URLSearchParams({format});if(search.trim().length>=2)p.set("search",search.trim());if(reference)p.set("reference",reference);if(uf)p.set("uf",uf);if(type)p.set("record_type",type);if(regime)p.set("regime",regime);if(table)p.set("table_type",table);if(min)p.set("min_value",min);if(max)p.set("max_value",max);if(priced!=="all")p.set("priced_only",priced==="yes"?"true":"false");window.location.href="/api/catalog/export?"+p;};
+const searchCompositions=async()=>{if(!selected)return;try{setCompositionResults(await api<Record<string,unknown>[]>("/api/composicoes?reference="+selected+"&search="+encodeURIComponent(composition.trim())+"&limit=100"));}catch(e){setError(e instanceof Error?e.message:"Erro ao pesquisar composições.");}};
+const openComposition=async(code=composition.trim())=>{if(!code||!selected)return;setComposition(code);try{const [items,cost]=await Promise.all([api<Record<string,unknown>[]>("/api/composicoes/"+encodeURIComponent(code)+"/itens?reference="+selected),api<Record<string,unknown>>("/api/composicoes/"+encodeURIComponent(code)+"/custo?reference="+selected+"&uf="+uf+"&regime="+regimeValue)]);setComponents(items);setCompositionCost(cost);}catch(e){setError(e instanceof Error?e.message:"Erro ao abrir composição ou calcular custo.");}};
+const compare=async()=>{if(!compareCode.trim()||!selected)return;try{setCompareRows(await api<Record<string,unknown>[]>("/api/compare/prices?code="+encodeURIComponent(compareCode)+"&reference="+selected+"&regime="+regimeValue));}catch(e){setError(e instanceof Error?e.message:"Erro ao comparar preços.");}};
+const regimeValue=regime||"nao_desonerado";
+const calcBudget=async(e:FormEvent)=>{e.preventDefault();try{const d=await api<Record<string,unknown>>("/api/budget",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reference:selected,uf,regime:regimeValue,encargo_mode:"com_encargos",items:budget.filter(x=>x.code.trim()).map(x=>({code:x.code,item_type:x.item_type,quantity:Number(x.quantity)}))})});setBudgetResult(d);}catch(e){setError(e instanceof Error?e.message:"Erro no cálculo.");}};
+const Metric=({label,value,foot}:{label:string;value:string;foot:string})=><div className="metric-card"><div className="metric-top">{label}</div><div className="metric-value">{value}</div><div className="metric-foot">{foot}</div></div>;
+const Bar=({label,value,maxValue}:{label:string;value:number;maxValue:number})=><div className="chart-bar-row"><span>{label}</span><div className="chart-track"><i style={{width:(maxValue?Math.max(1,value/maxValue*100):0)+"%"}}/></div><b>{fmt(value)}</b></div>;
+const heading=(eyebrow:string,h:string,sub:string)=><section className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{h}</h1><p>{sub}</p></div></section>;
+const dashboard=<>{heading("NR TECH / INTELIGÊNCIA DE CUSTOS","Visão executiva","Indicadores calculados diretamente da base SINAPI local.")}<div className="system-banner"><div className="banner-copy"><strong>Base consolidada · CAIXA SINAPI</strong><span>Dados reais do SQLite. Sem indicadores fictícios ou demonstrativos.</span></div><span className="development-pill">{selected||"SEM COMPETÊNCIA"}</span></div><div className="metrics-grid"><Metric label="REGISTROS CONSOLIDADOS" value={fmt(total)} foot="Insumos, composições e componentes"/><Metric label="PREÇOS DE INSUMOS" value={fmt(a?.totals.input_prices||0)} foot="Observações de preços carregadas"/><Metric label="COMPOSIÇÕES" value={fmt(a?.totals.compositions||0)} foot="Cadastros disponíveis"/><Metric label="UFs COM DADOS" value={fmt(a?.totals.states||0)} foot="Cobertura da competência"/></div><div className="analytics-grid"><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">COBERTURA GEOGRÁFICA</span><h2>Registros por UF</h2></div></div>{(a?.by_state||[]).map(x=><Bar key={x.uf} label={x.uf} value={x.observations} maxValue={Math.max(...(a?.by_state||[]).map(y=>y.observations),1)}/>)}</section><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">SÉRIE TEMPORAL</span><h2>Histórico por competência</h2></div></div>{(a?.by_reference||[]).map(x=><Bar key={x.reference} label={x.reference} value={x.input_prices+x.compositions} maxValue={Math.max(...(a?.by_reference||[]).map(y=>y.input_prices+y.compositions),1)}/>)}</section></div><div className="analytics-grid"><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">DISPONIBILIDADE</span><h2>Situação dos preços</h2></div></div>{(a?.status||[]).map(x=><Bar key={x.status} label={x.status} value={x.quantity} maxValue={Math.max(...(a?.status||[]).map(y=>y.quantity),1)}/>)}</section><section className="panel"><div className="panel-heading"><div><span className="panel-kicker">ESTRUTURA</span><h2>Distribuição por tabela</h2></div></div>{(a?.by_table||[]).map(x=><Bar key={x.table_type} label={x.table_type} value={x.observations} maxValue={Math.max(...(a?.by_table||[]).map(y=>y.observations),1)}/>)}</section></div></>;
+const catalogPage=<>{heading("CONSULTA SINAPI","Insumos","Pesquise preços por código ou descrição, com filtros por competência, UF e regime.")}<section className="panel catalog-panel"><div className="panel-heading"><div><span className="panel-kicker">CONSULTA DE INSUMOS</span><h2>Filtros da consulta</h2></div><div className="catalog-export-actions"><button className="text-action" onClick={()=>exportData("csv")}><Download size={14}/>CSV</button><button className="text-action" onClick={()=>exportData("xlsx")}><Download size={14}/>Excel</button><button className="text-action" onClick={()=>exportData("pdf")}><Download size={14}/>PDF</button><button className="text-action" onClick={()=>setAdvanced(!advanced)}><Filter size={14}/>{advanced?"Ocultar filtros":"Mais filtros"}</button></div></div><form className="catalog-filters" onSubmit={e=>{e.preventDefault();void loadCatalog(0);}}><label className="catalog-search"><span>BUSCA GLOBAL</span><div><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Código, descrição ou arquivo"/></div></label><label><span>COMPETÊNCIA</span><select value={reference} onChange={e=>setReference(e.target.value)}><option value="">Todas</option>{refs.map(x=><option key={x}>{x}</option>)}</select></label><label><span>UF</span><select value={uf} onChange={e=>setUf(e.target.value)}><option value="">Todas</option>{STATES.map(x=><option key={x}>{x}</option>)}</select></label><label><span>TIPO</span><select value={type} onChange={e=>setType(e.target.value)}><option value="">Todos</option><option value="INSUMO">Insumos</option><option value="COMPOSICAO">Composições</option><option value="COMPONENTE">Componentes</option></select></label><button className="primary-button"><Search size={15}/>Aplicar</button></form>{advanced&&<div className="filter-bar"><label>REGIME<select value={regime} onChange={e=>setRegime(e.target.value)}><option value="">Todos</option><option value="desonerado">Desonerado</option><option value="nao_desonerado">Não desonerado</option></select></label><label>TABELA<select value={table} onChange={e=>setTable(e.target.value)}><option value="">Todas</option><option>Analítico</option><option>ISD</option><option>ICD</option><option>ISE</option></select></label><label>VALOR MÍNIMO<input type="number" step="any" value={min} onChange={e=>setMin(e.target.value)}/></label><label>VALOR MÁXIMO<input type="number" step="any" value={max} onChange={e=>setMax(e.target.value)}/></label><label>VALOR<select value={priced} onChange={e=>setPriced(e.target.value)}><option value="all">Todos</option><option value="yes">Com preço/coeficiente</option><option value="no">Sem valor</option></select></label></div>}{error&&<div className="alert-error">{error}</div>}<div className="catalog-table-meta"><span>Exibindo {fmt(catalog.total?catalog.offset+1:0)}–{fmt(Math.min(catalog.offset+catalog.items.length,catalog.total))} de {fmt(catalog.total)}</span><button className="catalog-refresh" onClick={()=>void loadCatalog(catalog.offset)} disabled={busy}><RefreshCw size={14}/>Atualizar</button></div><div className="data-table-wrap catalog-table-wrap"><table className="catalog-table"><thead><tr>{["Competência","Tipo","Código","Descrição","Un.","UF","Regime","Tabela","Valor / coef.","Arquivo","Planilha"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{catalog.items.map((r,i)=><tr key={r.reference+r.code+r.source_row+i}><td>{r.reference}</td><td>{r.record_type}</td><td className="code-cell">{r.code}{r.composition_code&&<small className="catalog-parent">Composição {r.composition_code}</small>}</td><td className="catalog-description">{r.description}</td><td>{r.unit||"—"}</td><td>{r.uf||"Nacional"}</td><td>{r.regime||"—"}</td><td>{r.table_type}</td><td className="price-cell">{r.value==null?"—":r.value_type==="PREÇO"?brl(Number(r.value)):r.value}</td><td>{r.source_file}</td><td>{r.source_sheet} · {r.source_row}</td></tr>)}</tbody></table>{busy&&<div className="empty-state">Consultando base...</div>}{!busy&&!catalog.items.length&&<div className="empty-state">Nenhum registro encontrado.</div>}</div><div className="catalog-pagination"><span>Página {fmt(pageNo)} de {fmt(lastPage)}</span><div><button className="secondary-button" disabled={busy||catalog.offset===0} onClick={()=>void loadCatalog(Math.max(0,catalog.offset-100))}><ChevronLeft/>Anterior</button><button className="secondary-button" disabled={busy||catalog.offset+100>=catalog.total} onClick={()=>void loadCatalog(catalog.offset+100)}>Próxima<ChevronRight/></button></div></div></section></>;
+const compositionPage=<>{heading("ENGENHARIA DE CUSTOS","Composições","Pesquise composições, consulte seus componentes e confira o custo calculado para a UF selecionada.")}<section className="panel workspace-panel"><div className="filter-bar"><label className="search-field"><Search size={15}/><input value={composition} onChange={e=>setComposition(e.target.value)} placeholder="Código ou descrição da composição"/></label><label>COMPETÊNCIA<select value={reference||selected} onChange={e=>setReference(e.target.value)}>{refs.map(x=><option key={x}>{x}</option>)}</select></label><label>UF<select value={uf} onChange={e=>setUf(e.target.value)}>{STATES.map(x=><option key={x}>{x}</option>)}</select></label><label>REGIME<select value={regimeValue} onChange={e=>setRegime(e.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><button className="primary-button" onClick={()=>void searchCompositions()}><Search size={15}/>Pesquisar</button><button className="secondary-button" onClick={()=>void openComposition()} disabled={!composition.trim()}><Boxes size={15}/>Abrir</button></div>{compositionResults.length>0&&<div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Unidade</th><th>Situação</th><th></th></tr></thead><tbody>{compositionResults.map((x,i)=><tr key={String(x.code)+i}><td className="code-cell">{String(x.code||"")}</td><td>{String(x.description||"")}</td><td>{String(x.unit||"")}</td><td>{String(x.status||"—")}</td><td><button className="text-action" onClick={()=>void openComposition(String(x.code||""))}>Abrir</button></td></tr>)}</tbody></table></div>}{compositionCost&&<div className="system-banner"><div className="banner-copy"><strong>Custo unitário · {String(compositionCost.composition_code||composition)}</strong><span>UF {String(compositionCost.uf||uf)} · {String(compositionCost.reference||selected)} · {String(compositionCost.regime||regimeValue)}</span></div><div className="development-pill">{compositionCost.total==null?"NÃO TOTALIZADO":brl(Number(compositionCost.total))} · {String(compositionCost.status||"").toUpperCase()}</div></div>}{Array.isArray(compositionCost?.issues)&&compositionCost.issues.length>0&&<div className="panel-note">{(compositionCost.issues as unknown[]).map(String).join(" · ")}</div>}{components.length>0&&<div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Descrição</th><th>Unidade</th><th>Coeficiente</th><th>Status</th></tr></thead><tbody>{components.map((x,i)=><tr key={String(x.item_code)+i}><td>{String(x.item_code||"")}</td><td>{String(x.item_type||"")}</td><td>{String(x.description||"")}</td><td>{String(x.unit||"")}</td><td>{String(x.coefficient??"")}</td><td>{String(x.status||"")}</td></tr>)}</tbody></table></div>}</section></>;
+const budgetPage=<>{heading("PLANEJAMENTO","Cesta de custos e orçamento","Monte quantitativos e calcule o custo total pelo motor recursivo.")}<section className="panel workspace-panel"><form className="budget-form" onSubmit={calcBudget}><div className="budget-context"><label>COMPETÊNCIA<select value={reference||selected} onChange={e=>setReference(e.target.value)}>{refs.map(x=><option key={x}>{x}</option>)}</select></label><label>UF<select value={uf} onChange={e=>setUf(e.target.value)}>{STATES.map(x=><option key={x}>{x}</option>)}</select></label><label>REGIME<select value={regimeValue} onChange={e=>setRegime(e.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label></div><div className="panel-heading"><h2>Itens da cesta</h2><button type="button" className="text-action" onClick={()=>setBudget(v=>[...v,{code:"",item_type:"COMPOSICAO",quantity:"1"}])}><Plus/>Adicionar item</button></div>{budget.map((x,i)=><div className="budget-line" key={i}><label>CÓDIGO<input value={x.code} onChange={e=>setBudget(v=>v.map((z,j)=>j===i?{...z,code:e.target.value}:z))}/></label><label>TIPO<select value={x.item_type} onChange={e=>setBudget(v=>v.map((z,j)=>j===i?{...z,item_type:e.target.value}:z))}><option value="COMPOSICAO">Composição</option><option value="INSUMO">Insumo</option></select></label><label>QUANTIDADE<input type="number" min="0" step="any" value={x.quantity} onChange={e=>setBudget(v=>v.map((z,j)=>j===i?{...z,quantity:e.target.value}:z))}/></label><button type="button" className="remove-button" onClick={()=>setBudget(v=>v.filter((_,j)=>j!==i))} disabled={budget.length===1}><Trash2/></button></div>)}<button className="primary-button"><Calculator size={15}/>Calcular orçamento</button></form>{budgetResult&&<><div className="system-banner"><div className="banner-copy"><strong>Resultado do orçamento</strong><span>{String(budgetResult.reference||selected)} · UF {String(budgetResult.uf||uf)} · {String(budgetResult.regime||regimeValue)} · {String(budgetResult.status||"").toUpperCase()}</span></div><div className="development-pill">{budgetResult.total==null?"TOTAL INDISPONÍVEL":brl(Number(budgetResult.total))}</div></div>{Array.isArray(budgetResult.lines)&&<div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Quantidade</th><th>Custo unitário</th><th>Total</th><th>Situação</th></tr></thead><tbody>{budgetResult.lines.map((line,i)=>{const item=line as Record<string,unknown>;return <tr key={String(item.code)+i}><td className="code-cell">{String(item.code||"")}</td><td>{String(item.item_type||"")}</td><td>{String(item.quantity??"")}</td><td>{item.unit_cost==null?"—":brl(Number(item.unit_cost))}</td><td>{item.total==null?"—":brl(Number(item.total))}</td><td>{String(item.status||"")}</td></tr>;})}</tbody></table></div>}{Array.isArray(budgetResult.issues)&&budgetResult.issues.length>0&&<div className="panel-note">{(budgetResult.issues as unknown[]).map(String).join(" · ")}</div>}</>}</section></>;
+const comparePage=<>{heading("ANÁLISE COMPARATIVA","Comparador de preços","Compare o mesmo código entre as UFs na competência escolhida.")}<section className="panel workspace-panel"><div className="filter-bar"><label className="search-field"><Search size={15}/><input value={compareCode} onChange={e=>setCompareCode(e.target.value)} placeholder="Código do insumo"/></label><label>COMPETÊNCIA<select value={reference||selected} onChange={e=>setReference(e.target.value)}>{refs.map(x=><option key={x}>{x}</option>)}</select></label><label>REGIME<select value={regimeValue} onChange={e=>setRegime(e.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><button className="primary-button" onClick={()=>void compare()}><GitCompareArrows/>Comparar</button></div><div className="data-table-wrap"><table><thead><tr><th>UF</th><th>Código</th><th>Descrição</th><th>Un.</th><th>Regime</th><th>Preço</th><th>Status</th></tr></thead><tbody>{compareRows.map((x,i)=><tr key={String(x.uf)+i}><td>{String(x.uf)}</td><td>{String(x.code)}</td><td>{String(x.description)}</td><td>{String(x.unit)}</td><td>{String(x.regime)}</td><td>{x.price==null?"—":brl(Number(x.price))}</td><td>{String(x.status)}</td></tr>)}</tbody></table></div></section></>;
+const historyPage=<>{heading("GOVERNANÇA","Histórico de competências","Somente competências efetivamente persistidas na base.")}<section className="panel workspace-panel"><div className="data-table-wrap"><table><thead><tr><th>Competência</th><th>Arquivo de origem</th><th>Data da carga</th><th>Situação</th></tr></thead><tbody>{(a?.references||[]).map(x=><tr key={x.reference}><td>{x.reference}</td><td>{x.source_file}</td><td>{x.loaded_at}</td><td><span className="status-label good">CARREGADA</span></td></tr>)}</tbody></table></div></section></>;
+const reportsPage=<>{heading("GOVERNANÇA / EXPORTAÇÃO","Relatórios e exportações","Exporte a consulta atual em CSV, Excel, PDF ou JSON, respeitando os filtros selecionados.")}<section className="panel workspace-panel"><div className="filter-bar"><label>FORMATO<select value={reportFormat} onChange={e=>setReportFormat(e.target.value)}><option value="csv">CSV compatível com Excel</option><option value="xlsx">Pasta de trabalho Excel (XLSX)</option><option value="pdf">Relatório PDF (prévia de até 150 linhas)</option><option value="json">JSON</option></select></label><button className="primary-button" onClick={()=>exportData(reportFormat)}><Download size={15}/>Exportar registros filtrados</button><button className="secondary-button" onClick={()=>setPage("catalog")}>Configurar filtros</button></div><p className="panel-note">A exportação é gerada no backend a partir da base SQLite. Não se limita às 100 linhas da página visível.</p></section></>;
 
-  useEffect(() => { if (reference) void loadSummary(reference); }, [reference]);
+const usersPage=<>{heading("GOVERNANÇA / CONTROLE DE ACESSO","Gestão de acessos","Cadastre contas locais adicionais. O primeiro usuário criado permanece como administrador.")}<section className="panel workspace-panel"><div className="panel-heading"><div><span className="panel-kicker">NOVO ACESSO</span><h2>Criar usuário local</h2></div><span className="neutral-tag">ADMINISTRADOR</span></div><form className="auth-form user-create-form" onSubmit={async e=>{e.preventDefault();setError("");try{await api("/api/auth/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:newUsername,password:newPassword})});setNewUsername("");setNewPassword("");const result=await api<{users:{username:string;created_at:string;role:string}[]}>("/api/auth/users");setUserList(result.users);}catch(err){setError(err instanceof Error?err.message:"Não foi possível criar usuário.");}}}><label>USUÁRIO / E-MAIL<input value={newUsername} onChange={e=>setNewUsername(e.target.value)} minLength={3} required placeholder="usuario@empresa.com"/></label><label>SENHA INICIAL<input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} minLength={12} required placeholder="Mínimo de 12 caracteres"/></label><button className="primary-button"><Plus size={15}/>Cadastrar acesso</button></form><div className="panel-heading"><div><span className="panel-kicker">CONTAS CADASTRADAS</span><h2>Usuários locais</h2></div><span className="neutral-tag">{userList.length} contas</span></div><div className="data-table-wrap"><table><thead><tr><th>Usuário</th><th>Perfil</th><th>Criado em</th><th>Armazenamento</th></tr></thead><tbody>{userList.map(x=><tr key={x.username}><td>{x.username}</td><td>{x.role==="admin"?"Administrador":"Usuário"}</td><td>{x.created_at}</td><td><span className="status-label good">HASH PBKDF2</span></td></tr>)}</tbody></table></div><p className="panel-note">Somente o primeiro usuário, definido no primeiro acesso, pode cadastrar novas contas. As senhas não são armazenadas em texto puro nem enviadas a serviços externos.</p></section></>;
 
-  async function searchPrices(event?: FormEvent) {
-    event?.preventDefault();
-    if (!reference) return;
-    setBusy(true); setError("");
-    try {
-      const params = new URLSearchParams({
-        reference, uf, regime, encargo_mode: encargoMode, limit: "200",
-      });
-      if (search.trim()) params.set("search", search.trim());
-      setPrices(await request<InputPrice[]>(`/api/insumos?${params.toString()}`));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Falha ao pesquisar insumos.");
-    } finally { setBusy(false); }
-  }
-
-  async function searchCompositions(event?: FormEvent) {
-    event?.preventDefault();
-    if (!reference) return;
-    setBusy(true); setError("");
-    try {
-      const params = new URLSearchParams({ reference, limit: "200" });
-      if (search.trim()) params.set("search", search.trim());
-      setCompositions(await request<Composition[]>(`/api/composicoes?${params.toString()}`));
-      setSelectedCost(null);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Falha ao pesquisar composições.");
-    } finally { setBusy(false); }
-  }
-
-  async function calculateComposition(code: string) {
-    setBusy(true); setError("");
-    try {
-      const params = new URLSearchParams({ reference, uf, regime, encargo_mode: encargoMode });
-      setSelectedCost(await request<CostResult>(`/api/composicoes/${encodeURIComponent(code)}/custo?${params.toString()}`));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Falha no cálculo da composição.");
-    } finally { setBusy(false); }
-  }
-
-  async function calculateBudget(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError(""); setBudgetResult(null);
-    try {
-      const items = budgetRows.filter((row) => row.code.trim() && Number(row.quantity) >= 0)
-        .map((row) => ({ ...row, quantity: row.quantity }));
-      if (!items.length) throw new Error("Informe ao menos um código e uma quantidade.");
-      const result = await request<BudgetResult>("/api/budget", {
-        method: "POST",
-        body: JSON.stringify({ reference, uf, regime, encargo_mode: encargoMode, items }),
-      });
-      setBudgetResult(result);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Falha ao calcular orçamento.");
-    } finally { setBusy(false); }
-  }
-
-  function updateBudgetRow(index: number, field: keyof BudgetRow, value: string) {
-    setBudgetRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
-  }
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <div className="brand-mark"><Activity size={23} /></div>
-          <div><span className="brand-name">GET-SINAPI</span><span className="brand-subtitle">NR DATA ANALYSIS</span></div>
-        </div>
-        <div className="workspace-label">PLATAFORMA</div>
-        <nav className="navigation" aria-label="Navegação principal">
-          {navigation.map(({ id, label, icon: Icon }) => (
-            <button className={page === id ? "nav-item active" : "nav-item"} key={id} type="button" onClick={() => { setPage(id); setError(""); }}>
-              <Icon size={18} strokeWidth={1.8} /><span>{label}</span>
-              {page === id && <span className="nav-indicator" />}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="sidebar-status"><span className="status-dot" /><span>Ambiente de desenvolvimento</span></div>
-          <button className="nav-item muted" type="button" disabled><Settings2 size={18} /><span>Configurações</span></button>
-          <div className="sidebar-version">GET-SINAPI <span>v0.1.0</span></div>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <div className="breadcrumb">Plataforma <span>/</span> <strong>{navigation.find((item) => item.id === page)?.label}</strong></div>
-          <div className="topbar-right"><span className="environment-tag">LOCAL / DEV</span><button className="icon-button" aria-label="Ajuda" type="button"><CircleHelp size={18} /></button></div>
-        </header>
-
-        <section className="page-heading">
-          <div><div className="eyebrow">CENTRAL DE INTELIGÊNCIA DE CUSTOS</div><h1>{navigation.find((item) => item.id === page)?.label}</h1><p>Dados oficiais SINAPI para pesquisa, análise comparativa e composição de orçamentos.</p></div>
-          <div className="reference-controls">
-            <label>COMPETÊNCIA<select value={reference} onChange={(event) => setReference(event.target.value)}><option value="">Selecione</option>{references.map((item) => <option key={item.reference} value={item.reference}>{item.reference}</option>)}</select></label>
-            <label>UF<select value={uf} onChange={(event) => setUf(event.target.value)}>{["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((state) => <option key={state}>{state}</option>)}</select></label>
-          </div>
-        </section>
-
-        {error && <div className="alert-error" role="alert">{error}</div>}
-        {!references.length && <section className="system-banner"><div className="banner-icon"><Database size={21} /></div><div className="banner-copy"><strong>Nenhuma competência carregada</strong><span>Execute o pipeline de download, extração, normalização e carga para habilitar as consultas.</span></div><span className="development-pill">AGUARDANDO DADOS</span></section>}
-
-        {page === "overview" && <>
-          <section className="metrics-grid" aria-label="Indicadores SINAPI">
-            <article className="metric-card"><div className="metric-top"><span>Observações de preços</span><Boxes size={18} /></div><div className="metric-value">{summary ? number(summary.input_prices) : "—"}</div><div className="metric-foot">Insumos × UFs × tabelas</div></article>
-            <article className="metric-card"><div className="metric-top"><span>Composições</span><Layers3 size={18} /></div><div className="metric-value">{summary ? number(summary.compositions) : "—"}</div><div className="metric-foot">Composições analíticas</div></article>
-            <article className="metric-card"><div className="metric-top"><span>Estados cobertos</span><MapPin size={18} /></div><div className="metric-value">{summary ? number(summary.states) : "—"}</div><div className="metric-foot">UFs com observações</div></article>
-            <article className="metric-card"><div className="metric-top"><span>Preços indisponíveis</span><ShieldCheck size={18} /></div><div className="metric-value">{summary ? number(summary.unavailable_prices) : "—"}</div><div className="metric-foot">Ausentes ou não pesquisados</div></article>
-          </section>
-          <div className="content-grid">
-            <section className="panel"><div className="panel-heading"><div><span className="panel-kicker">BASE DE DADOS</span><h2>Competências disponíveis</h2></div><span className="neutral-tag">{references.length} carregadas</span></div>
-              {references.length ? <div className="data-table-wrap"><table><thead><tr><th>Competência</th><th>Arquivo de origem</th><th>Carregada em</th></tr></thead><tbody>{references.map((item) => <tr key={item.reference}><td className="code-cell">{item.reference}</td><td>{item.source_file}</td><td>{new Date(item.loaded_at.replace(" ", "T") + "Z").toLocaleString("pt-BR")}</td></tr>)}</tbody></table></div> : <div className="empty-state">Aguardando primeira carga histórica.</div>}
-            </section>
-            <section className="panel connection-panel"><div className="panel-heading"><div><span className="panel-kicker">CONECTIVIDADE</span><h2>Serviços</h2></div><span className="live-indicator"><span /> LIVE</span></div>
-              <div className="service-row"><div className="service-icon"><Activity size={17} /></div><div className="service-info"><strong>API GET-SINAPI</strong><small>FastAPI · /api/health</small></div><span className={apiState === "online" ? "service-state online" : apiState === "offline" ? "service-state offline" : "service-state checking"}>{apiLabel}</span></div>
-              <div className="service-row"><div className="service-icon"><Database size={17} /></div><div className="service-info"><strong>Banco histórico</strong><small>SQLite · persistência local</small></div><span className="service-state online">Configurável</span></div>
-              <div className="service-row"><div className="service-icon"><ChartColumn size={17} /></div><div className="service-info"><strong>Camada analítica</strong><small>Consultas e cálculo recursivo</small></div><span className="service-state online">Inicial</span></div>
-              <div className="service-foot">Última verificação: {lastCheck}</div>
-            </section>
-          </div>
-        </>}
-
-        {page === "insumos" && <section className="panel workspace-panel">
-          <div className="panel-heading"><div><span className="panel-kicker">CATÁLOGO DE PREÇOS</span><h2>Pesquisa de insumos</h2></div><span className="neutral-tag">{prices.length} resultados</span></div>
-          <form className="filter-bar" onSubmit={searchPrices}><label className="search-field"><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Código ou descrição do insumo"/></label><label>REGIME<select value={regime} onChange={(event) => setRegime(event.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><label>ENCARGOS<select value={encargoMode} onChange={(event) => setEncargoMode(event.target.value)}><option value="com_encargos">Com encargos</option><option value="sem_encargos">Sem encargos</option></select></label><button className="primary-button" disabled={busy || !reference}><Search size={15}/>{busy ? "Consultando..." : "Pesquisar"}</button></form>
-          <div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>UF</th><th>Tabela</th><th>Preço</th><th>Situação</th></tr></thead><tbody>{prices.map((item, index) => <tr key={item.code + item.uf + item.table_type + index}><td className="code-cell">{item.code}</td><td>{item.description}</td><td>{item.unit}</td><td>{item.uf}</td><td>{item.table_type}</td><td className="price-cell">{money(item.price)}</td><td><span className={item.status === "reported" || item.status === "reported_zero" ? "status-label good" : "status-label warn"}>{item.status}</span></td></tr>)}</tbody></table>{!prices.length && <div className="empty-state">Informe um código ou descrição e execute a pesquisa.</div>}</div>
-        </section>}
-
-        {page === "composicoes" && <section className="panel workspace-panel">
-          <div className="panel-heading"><div><span className="panel-kicker">BASE ANALÍTICA</span><h2>Composições SINAPI</h2></div><span className="neutral-tag">{compositions.length} resultados</span></div>
-          <form className="filter-bar" onSubmit={searchCompositions}><label className="search-field"><Search size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Código ou descrição da composição"/></label><button className="primary-button" disabled={busy || !reference}><Search size={15}/>{busy ? "Consultando..." : "Pesquisar"}</button></form>
-          <div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Descrição</th><th>Un.</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{compositions.map((item) => <tr key={item.code}><td className="code-cell">{item.code}</td><td>{item.description}</td><td>{item.unit}</td><td>{item.status ?? "—"}</td><td><button className="text-action" type="button" onClick={() => calculateComposition(item.code)} disabled={busy}>Calcular custo <ChevronRight size={14}/></button></td></tr>)}</tbody></table>{!compositions.length && <div className="empty-state">Pesquise uma composição para consultar seus componentes e custo calculado.</div>}</div>
-          {selectedCost && <div className="cost-result"><div className="cost-result-head"><div><span className="panel-kicker">CUSTO UNITÁRIO · {selectedCost.composition_code}</span><h3>{money(selectedCost.total)}</h3></div><span className={selectedCost.status === "complete" ? "status-label good" : "status-label warn"}>{selectedCost.status}</span></div><div className="data-table-wrap"><table><thead><tr><th>Componente</th><th>Coeficiente</th><th>Preço unitário</th><th>Custo parcial</th></tr></thead><tbody>{selectedCost.lines.map((line, index) => <tr key={line.item_code + index}><td>{line.item_code} · {line.description}</td><td>{line.coefficient}</td><td>{money(line.unit_price)}</td><td>{money(line.total)}</td></tr>)}</tbody></table></div>{selectedCost.issues.map((issue) => <p className="issue-line" key={issue}>{issue}</p>)}</div>}
-        </section>}
-
-        {page === "orcamento" && <section className="panel workspace-panel">
-          <div className="panel-heading"><div><span className="panel-kicker">COMPOSIÇÃO DE CUSTOS</span><h2>Orçamento por referência SINAPI</h2></div><span className="neutral-tag">Cálculo com Decimal</span></div>
-          <form onSubmit={calculateBudget} className="budget-form">
-            <div className="budget-context"><label>REGIME<select value={regime} onChange={(event) => setRegime(event.target.value)}><option value="nao_desonerado">Não desonerado</option><option value="desonerado">Desonerado</option></select></label><label>ENCARGOS<select value={encargoMode} onChange={(event) => setEncargoMode(event.target.value)}><option value="com_encargos">Com encargos</option><option value="sem_encargos">Sem encargos</option></select></label></div>
-            <div className="budget-lines">{budgetRows.map((row, index) => <div className="budget-line" key={index}><label>CÓDIGO SINAPI<input value={row.code} onChange={(event) => updateBudgetRow(index, "code", event.target.value)} placeholder="Ex.: 104658"/></label><label>TIPO<select value={row.item_type} onChange={(event) => updateBudgetRow(index, "item_type", event.target.value)}><option value="COMPOSICAO">Composição</option><option value="INSUMO">Insumo</option></select></label><label>QUANTIDADE<input type="number" min="0" step="any" value={row.quantity} onChange={(event) => updateBudgetRow(index, "quantity", event.target.value)}/></label><button className="remove-button" type="button" aria-label="Remover item" onClick={() => setBudgetRows((rows) => rows.length > 1 ? rows.filter((_, rowIndex) => rowIndex !== index) : rows)}><Trash2 size={16}/></button></div>)}</div>
-            <div className="budget-actions"><button className="secondary-button" type="button" onClick={() => setBudgetRows((rows) => [...rows, { code: "", item_type: "COMPOSICAO", quantity: "1" }])}><Plus size={15}/>Adicionar item</button><button className="primary-button" disabled={busy || !reference}><Calculator size={15}/>{busy ? "Calculando..." : "Calcular orçamento"}</button></div>
-          </form>
-          {budgetResult && <div className="cost-result"><div className="cost-result-head"><div><span className="panel-kicker">TOTAL DO ORÇAMENTO</span><h3>{money(budgetResult.total)}</h3></div><span className={budgetResult.status === "complete" ? "status-label good" : "status-label warn"}>{budgetResult.status}</span></div><div className="data-table-wrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Quantidade</th><th>Custo unitário</th><th>Total</th></tr></thead><tbody>{budgetResult.lines.map((line, index) => <tr key={line.code + index}><td className="code-cell">{line.code}</td><td>{line.item_type}</td><td>{line.quantity}</td><td>{money(line.unit_cost)}</td><td>{money(line.total)}</td></tr>)}</tbody></table></div>{budgetResult.issues.map((issue) => <p className="issue-line" key={issue}>{issue}</p>)}</div>}
-        </section>}
-
-        <footer className="footer"><span>GET-SINAPI <i>·</i> NR Data Analysis</span><span>Dados oficiais, rastreabilidade e integridade.</span></footer>
-      </main>
-    </div>
-  );
+const auditPage=<>{heading("CONFIABILIDADE / LINHAGEM","Integridade e auditoria","Volumetria, origem e estado da base carregada.")}<div className="metrics-grid"><Metric label="API" value={online?"ONLINE":"OFFLINE"} foot="Serviço local"/><Metric label="COMPETÊNCIAS" value={fmt(refs.length)} foot="Histórico persistido"/><Metric label="PREÇOS INDISPONÍVEIS" value={fmt(a?.totals.unavailable_prices||0)} foot="Ausentes ou não pesquisados"/><Metric label="REGISTROS" value={fmt(total)} foot="Total consolidado"/></div><section className="panel workspace-panel"><div className="panel-heading"><h2>Rastreabilidade da fonte</h2><button className="secondary-button" onClick={()=>void loadAnalytics()}><RefreshCw/>Atualizar</button></div><p className="panel-note">O catálogo mantém competência, arquivo, planilha e linha de origem. Esta tela não declara validação SHA-256 em tempo real; os checksums são registrados pelo pipeline de ingestão.</p><div className="data-table-wrap"><table><thead><tr><th>Competência</th><th>Arquivo</th><th>Data de carga</th></tr></thead><tbody>{(a?.references||[]).map(x=><tr key={x.reference}><td>{x.reference}</td><td>{x.source_file}</td><td>{x.loaded_at}</td></tr>)}</tbody></table></div></section></>;
+if(!authReady)return <div className="auth-screen"><section className="auth-card"><div className="brand-mark"><LockKeyhole size={23}/></div><h1>GET-SINAPI</h1><p>Inicializando autenticação local...</p></section></div>;
+if(!authenticated)return <div className="auth-screen"><section className="auth-card"><div className="brand-mark"><LockKeyhole size={23}/></div><div className="eyebrow">NR TECH / ACESSO LOCAL</div><h1>{authConfigured?"Acessar plataforma":"Configurar primeiro acesso"}</h1><p>{authConfigured?"Entre com seu usuário e senha local.":"Crie a primeira conta administradora. As credenciais ficam armazenadas localmente com hash PBKDF2; nenhuma senha é enviada à nuvem."}</p><form className="auth-form" onSubmit={submitAuth}><label>USUÁRIO<input autoComplete="username" value={authUser} onChange={e=>setAuthUser(e.target.value)} placeholder="Seu usuário" required minLength={3}/></label><label>SENHA<input autoComplete={authConfigured?"current-password":"new-password"} type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="Mínimo de 12 caracteres" required minLength={12}/></label>{error&&<div className="alert-error">{error}</div>}<button className="primary-button" disabled={authBusy}>{authBusy?"Validando...":authConfigured?"Entrar":"Criar conta local"}</button></form><small>Autenticação offline · sessão local de 8 horas</small></section></div>;
+return <div className="app-shell"><aside className={"sidebar "+(mobile?"sidebar-open":"")}><div className="brand-lockup"><div className="brand-mark"><Activity size={23}/></div><div><span className="brand-name">GET-SINAPI</span><span className="brand-subtitle">NR TECH · PLATAFORMA</span></div></div><div className="workspace-label">PLATAFORMA DE CUSTOS</div>{["VISÃO GERAL","CONSULTAS","ANÁLISE","BASE SINAPI"].map(g=><div key={g}><div className="nav-group-label">{g}</div><nav className="navigation">{nav.filter(n=>n.group===g&&(n.id!=="users"||isAdmin)).map(n=><button key={n.id} className={"nav-item "+(page===n.id?"active":"")} onClick={()=>{setPage(n.id);setMobile(false);}}><n.icon size={16}/>{n.label}</button>)}</nav></div>)}<div className="sidebar-bottom"><div className="sidebar-status"><span className={online?"status-dot":"status-dot offline-dot"}/><span>{online?"Serviço conectado":"Aguardando conexão"}</span></div><div className="sidebar-version">NR TECH <span>v3.0.0</span></div></div></aside><main className="main-content"><header className="topbar"><div className="breadcrumb">GET-SINAPI <span>/</span><strong>{title}</strong></div><div className="topbar-right"><span className="environment-tag">CAIXA · SINAPI</span><button className="secondary-button" onClick={()=>void updateDatabase()} disabled={updateBusy||["running","starting","checking"].includes(bootstrapState.status||"")} title="Solicitar atualização das competências SINAPI"><RefreshCw size={14}/>{["running","starting","checking"].includes(bootstrapState.status||"")?"Atualizando...":"Atualizar base"}</button><a href="https://www.caixa.gov.br/poder-publico/modernizacao-gestao/sinapi/Paginas/default.aspx" target="_blank" rel="noreferrer" className="environment-tag" title="Abrir portal oficial do SINAPI na CAIXA" style={{display:"inline-flex",alignItems:"center",gap:6,textDecoration:"none"}}><ExternalLink size={13}/>Portal oficial CAIXA</a><span className="user-tag">{authUser}</span><button className="icon-button logout-button" onClick={()=>void logout()} title="Sair"><LogOut size={15}/></button><button className="icon-button mobile-menu" onClick={()=>setMobile(!mobile)}>{mobile?<X/>:<Menu/>}</button></div></header>{bootstrapState.message&&<div className="panel-note" role="status">{bootstrapState.message}{(bootstrapState.reference||bootstrapState.current_reference)?" · "+(bootstrapState.reference||bootstrapState.current_reference):""}{Number.isFinite(bootstrapState.percent)?" · "+bootstrapState.percent+"%":""}{bootstrapState.error?" · "+bootstrapState.error:""}</div>}{error&&<div className="alert-error">{error}</div>}{page==="dashboard"&&dashboard}{page==="catalog"&&catalogPage}{page==="compositions"&&compositionPage}{page==="compare"&&comparePage}{page==="budget"&&budgetPage}{page==="history"&&historyPage}{page==="reports"&&reportsPage}{page==="audit"&&auditPage}{page==="users"&&usersPage}<footer className="footer"><span>© {new Date().getFullYear()} NR TECH · GET-SINAPI. Todos os direitos reservados.</span><span>Fonte: CAIXA Econômica Federal · SINAPI</span><a href="https://www.caixa.gov.br/poder-publico/modernizacao-gestao/sinapi/Paginas/default.aspx" target="_blank" rel="noreferrer">Portal oficial da CAIXA</a></footer></main></div>;
 }
-
 export default App;

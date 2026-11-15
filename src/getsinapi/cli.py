@@ -1,47 +1,274 @@
 """Interface de linha de comando do GET-SINAPI."""
+
+from __future__ import annotations
+
 import argparse
+import os
+import platform
+import sys
 from pathlib import Path
 
 from getsinapi import __version__
 from getsinapi.config import Settings
 
+CYAN = "\033[96m"
+BLUE = "\033[94m"
+YELLOW = "\033[93m"
+GREEN = "\033[92m"
+RESET = "\033[0m"
+
+
+def _enable_ansi() -> bool:
+    """Habilita cores ANSI no terminal, com fallback seguro."""
+    if not sys.stdout.isatty():
+        return False
+    if platform.system() != "Windows":
+        return True
+    try:
+        import ctypes
+        import msvcrt
+
+        handle = msvcrt.get_osfhandle(sys.stdout.fileno())
+        mode = ctypes.c_uint()
+        kernel32 = ctypes.windll.kernel32
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
+ANSI_ENABLED = _enable_ansi()
+
+
+def _paint(value: str, color: str) -> str:
+    return f"{color}{value}{RESET}" if ANSI_ENABLED else value
+
+
+def _rule(char: str = "─", color: str = CYAN) -> None:
+    """Desenha um separador padronizado para os painéis do terminal."""
+    print(_paint("  " + char * 66, color))
+
+
+def _section(number: str, title: str, subtitle: str | None = None) -> None:
+    """Exibe uma seção numerada com hierarquia visual consistente."""
+    print()
+    print(_paint(f"  {number}  |  {title.upper()}", BLUE))
+    _rule()
+    if subtitle:
+        print(f"  {subtitle}")
+
+
+def _show_header() -> None:
+    """Exibe a identidade do produto e os avisos de titularidade no terminal."""
+    width = 68
+    print()
+    print(_paint("╔" + "═" * width + "╗", CYAN))
+    print(_paint("║" + "GET-SINAPI".center(width) + "║", CYAN))
+    print(_paint("║" + "PLATAFORMA DE DADOS SINAPI | CAIXA".center(width) + "║", BLUE))
+    print(_paint("║" + "NR TECH  •  TERMINAL PYTHON".center(width) + "║", CYAN))
+    print(_paint("║" + f"VERSÃO {__version__}".center(width) + "║", CYAN))
+    print(_paint("╚" + "═" * width + "╝", CYAN))
+    print("  FONTE       : Publicações oficiais da CAIXA / SINAPI")
+    print("  RECURSOS    : Consulta local • Excel • CSV • Exportação em lote")
+    print(_paint("  TITULAR     : © 2026 Nadison Roberto | NR TECH", BLUE))
+    print(_paint("  LICENÇA     : MIT — consulte o arquivo LICENSE", BLUE))
+    print()
+
+
+def _parse_multi_selection(answer: str, total: int) -> list[int] | None:
+    """Converte números separados por vírgula em índices; None representa 'todas'."""
+    value = answer.strip().upper()
+    if not value or value == "A":
+        return None
+    tokens = [item.strip() for item in value.split(",")]
+    if any(not token.isdigit() for token in tokens):
+        raise ValueError("Use números separados por vírgula ou A para todas.")
+    indexes = [int(token) for token in tokens]
+    if any(index < 1 or index > total for index in indexes):
+        raise ValueError(f"Seleção fora do intervalo. Informe valores de 1 a {total}.")
+    return list(dict.fromkeys(indexes))
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="getsinapi",
-        description="Pipeline de coleta e estruturação de dados SINAPI/CAIXA.",
+        description="Coleta, consulta e exporta dados SINAPI/CAIXA.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command")
-
     commands.add_parser("check-config", help="Valida as configurações locais.")
+    commands.add_parser("export", help="Abre o menu interativo de exportação em lote.")
+
     download = commands.add_parser("download", help="Baixa o pacote XLSX mensal oficial da CAIXA.")
-    download.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
+    download.add_argument("--reference", required=True, help="Competência no formato AAAA-MM")
 
     extract = commands.add_parser("extract", help="Extrai ZIP e cataloga planilhas XLSX.")
     extract.add_argument("--archive", required=True, type=Path, help="Caminho do ZIP já baixado.")
-    extract.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
+    extract.add_argument("--reference", required=True, help="Competência no formato AAAA-MM")
 
-    parse = commands.add_parser(
-        "parse", help="Normaliza preços e composições do XLSX oficial para a camada Silver."
-    )
+    parse = commands.add_parser("parse", help="Normaliza preços e composições para Silver.")
     parse.add_argument("--workbook", required=True, type=Path, help="XLSX oficial de referência.")
-    parse.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
+    parse.add_argument("--reference", required=True, help="Competência no formato AAAA-MM")
 
-    load = commands.add_parser(
-        "load", help="Carrega os artefatos Silver no banco histórico SQLite."
-    )
-    load.add_argument("--reference", required=True, help="Competência no formato AAAA-MM.")
-
+    load = commands.add_parser("load", help="Carrega os artefatos Silver no SQLite.")
+    load.add_argument("--reference", required=True, help="Competência no formato AAAA-MM")
     return parser
+
+
+def _ask_choice(prompt: str, options: dict[str, str], default: str | None = None) -> str:
+    while True:
+        suffix = f" [padrão {default}]" if default else ""
+        answer = input(f"{prompt}{suffix}: ").strip() or (default or "")
+        if answer in options:
+            return answer
+        print("Opção inválida. Escolha uma das opções exibidas.")
+
+
+def _resolve_export_format(choice: str) -> str:
+    """Converte a opção numérica do menu para o formato aceito pelo exportador."""
+    formats = {"1": "xlsx", "2": "csv", "3": "both"}
+    try:
+        return formats[choice]
+    except KeyError as exc:
+        raise ValueError("Formato de exportação inválido.") from exc
+
+
+def _default_download_dir() -> Path:
+    """Retorna a pasta Downloads do usuário, sem solicitar um caminho manual."""
+    return Path.home() / "Downloads"
+
+
+def _export_menu(settings: Settings) -> int:
+    from getsinapi.exporter import available_references, export_catalog
+
+    desktop_data = Path(os.getenv("LOCALAPPDATA", Path.home())) / "NRTech" / "GET-SINAPI-V3" / "data"
+    candidates = [
+        Path(os.getenv("GETSINAPI_DATABASE_PATH", "")) if os.getenv("GETSINAPI_DATABASE_PATH") else None,
+        desktop_data / "getsinapi.sqlite3",
+        settings.data_dir / "getsinapi.sqlite3",
+    ]
+    database = next(
+        (path for path in candidates if path and path.is_file()),
+        desktop_data / "getsinapi.sqlite3" if os.name == "nt" else settings.data_dir / "getsinapi.sqlite3",
+    )
+    if not database.is_file():
+        print(f"Banco SINAPI não encontrado: {database}")
+        print("Inicialize a base com os comandos download, extract, parse e load.")
+        return 2
+
+    print(_paint("  ╔" + "═" * 66 + "╗", CYAN))
+    print(_paint("  ║" + "CENTRAL DE EXPORTAÇÃO".center(66) + "║", CYAN))
+    print(_paint("  ╚" + "═" * 66 + "╝", CYAN))
+    print("  Selecione os dados, aplique os filtros e defina o formato de saída.")
+    _section("01", "Modo de exportação", "Escolha entre uma exportação completa ou personalizada.")
+    print(_paint("  [1]", CYAN) + " Exportação completa — insumos, composições e componentes")
+    print(_paint("  [2]", CYAN) + " Exportação personalizada — selecionar categorias")
+    mode = _ask_choice("Selecione", {"1": "Tudo", "2": "Personalizado"}, "1")
+
+    categories = ["INSUMO", "COMPOSICAO", "COMPONENTE"]
+    if mode == "2":
+        _section("02", "Categorias", "Informe uma ou mais categorias separadas por vírgula.")
+        print(_paint("  [1]", CYAN) + " Insumos")
+        print(_paint("  [2]", CYAN) + " Composições")
+        print(_paint("  [3]", CYAN) + " Componentes")
+        selected = input("Categorias (ex.: 1,3): ").strip()
+        mapping = {"1": "INSUMO", "2": "COMPOSICAO", "3": "COMPONENTE"}
+        try:
+            indexes = _parse_multi_selection(selected, 3)
+            categories = list(mapping.values()) if indexes is None else [
+                mapping[str(index)] for index in indexes
+            ]
+        except ValueError as exc:
+            print(_paint(f"Seleção inválida: {exc}", YELLOW))
+            return 2
+
+    refs = available_references(database)
+    if not refs:
+        print("A base SQLite não possui competências carregadas.")
+        return 2
+    _section("03", "Competências disponíveis", "Selecione números separados por vírgula ou A para todas.")
+    for index, reference in enumerate(refs, start=1):
+        print(_paint(f"  [{index:>2}] {reference}", CYAN))
+    print(_paint("  [ A]", CYAN) + " Todas as competências")
+    reference_choice = input("Competências (ex.: 1,2,5 ou A) [A]: ").strip().upper() or "A"
+    try:
+        indexes = _parse_multi_selection(reference_choice, len(refs))
+        references = None if indexes is None else [refs[index - 1] for index in indexes]
+    except ValueError as exc:
+        print(_paint(f"Competência inválida: {exc}", YELLOW))
+        return 2
+
+    _section("04", "Filtros complementares", "Pressione ENTER para manter o filtro sem restrição.")
+    uf = input("  UF (duas letras) ou ENTER para todas: ").strip().upper() or None
+    if uf and (len(uf) != 2 or not uf.isalpha()):
+        print("UF inválida.")
+        return 2
+
+    regime_choice = _ask_choice(
+        "  Regime: [1] Todos | [2] Desonerado | [3] Não desonerado",
+        {"1": "all", "2": "desonerado", "3": "nao_desonerado"},
+        "1",
+    )
+    regime = None if regime_choice == "1" else regime_choice
+
+    encargo_choice = _ask_choice(
+        "  Encargos: [1] Todos | [2] Com encargos | [3] Sem encargos",
+        {"1": "all", "2": "com_encargos", "3": "sem_encargos"},
+        "1",
+    )
+    encargo_mode = None if encargo_choice == "1" else encargo_choice
+
+    search = input("  Código ou descrição (ENTER para sem filtro): ").strip() or None
+    _section("05", "Formato e destino", "Os arquivos serão salvos automaticamente na pasta Downloads.")
+    format_choice = _ask_choice(
+        "  Formato: [1] Excel (.xlsx) | [2] CSV | [3] Excel + CSV",
+        {"1": "Excel (.xlsx)", "2": "CSV", "3": "Excel + CSV"},
+        "1",
+    )
+    file_format = _resolve_export_format(format_choice)
+    output_dir = _default_download_dir()
+    print(f"  Destino automático: {output_dir}")
+
+    _section("06", "Processamento", "Preparando a exportação a partir da base SQLite local.")
+    print(_paint("  PROCESSANDO...", YELLOW))
+
+    def show_progress(phase: str, processed: int) -> None:
+        print(f"  {phase}: {processed:,} registros processados", end="\r", flush=True)
+
+    generated = export_catalog(
+        database,
+        output_dir,
+        file_format=file_format,
+        references=references,
+        uf=uf,
+        categories=categories,
+        regime=regime,
+        encargo_mode=encargo_mode,
+        search=search,
+        progress_callback=show_progress,
+    )
+    print()
+    print(_paint("\n  STATUS  : EXPORTAÇÃO CONCLUÍDA", GREEN))
+    print(_paint(f"  ARQUIVOS: {len(generated)}", GREEN))
+    for path in generated:
+        print(_paint("  [OK]", GREEN) + f" {path}")
+    _rule("═")
+    print(_paint("  © 2026 Nadison Roberto | NR TECH", BLUE))
+    return 0
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    _show_header()
     settings = Settings.from_env()
 
-    if args.command in (None, "check-config"):
+    if args.command in (None, "export"):
+        settings.create_data_directories()
+        return _export_menu(settings)
+
+    if args.command == "check-config":
         settings.create_data_directories()
         print(f"Configuração válida | ambiente={settings.environment}")
         print(f"Diretório de dados: {settings.data_dir}")
@@ -49,7 +276,6 @@ def main() -> int:
 
     if args.command == "download":
         from getsinapi.collectors.caixa import download_monthly_xlsx
-
         artifact = download_monthly_xlsx(args.reference, settings=settings)
         print(f"Download validado: {artifact.path}")
         print(f"SHA-256: {artifact.sha256}")
@@ -58,7 +284,6 @@ def main() -> int:
 
     if args.command == "extract":
         from getsinapi.extractors.workbooks import extract_and_catalog
-
         result = extract_and_catalog(args.archive, args.reference, settings=settings)
         print(f"Arquivos extraídos: {len(result['files'])}")
         print(f"Planilhas catalogadas: {len(result['workbooks'])}")
@@ -69,10 +294,7 @@ def main() -> int:
 
     if args.command == "parse":
         from getsinapi.pipeline.normalize import normalize_reference_workbook
-
-        result = normalize_reference_workbook(
-            args.workbook, reference=args.reference, settings=settings
-        )
+        result = normalize_reference_workbook(args.workbook, reference=args.reference, settings=settings)
         print(f"Competência: {result['reference']}")
         print(f"Preços: {result['counts']['input_prices']:,}")
         print(f"Composições: {result['counts']['compositions']:,}")
@@ -83,7 +305,6 @@ def main() -> int:
 
     if args.command == "load":
         from getsinapi.storage.sqlite import load_silver_reference
-
         result = load_silver_reference(settings.processed_dir, reference=args.reference)
         print(f"Competência carregada: {result['reference']}")
         print(f"Preços: {result['input_prices']:,}")

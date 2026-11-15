@@ -23,12 +23,12 @@ def make_analytic_workbook(path):
         sheet.cell(row=11, column=column, value=value)
 
     # Direct input item.
-    values = [None, "104658", "INSUMO", "00001379", "Cimento Portland", "KG", 2.5, None]
+    values = [None, "104658", "INSUMO", "00001379", "Cimento Portland", "KG", 2.5, "COM PREÇO"]
     for column, value in enumerate(values, start=1):
         sheet.cell(row=12, column=column, value=value)
 
     # Nested composition.
-    values = [None, "104658", "COMPOSICAO", "87321", "Argamassa", "M3", 0.125, None]
+    values = [None, "104658", "COMPOSICAO", "87321", "Argamassa", "M3", 0.125, "COM CUSTO"]
     for column, value in enumerate(values, start=1):
         sheet.cell(row=13, column=column, value=value)
 
@@ -53,7 +53,9 @@ def test_parse_analytic_composition_and_items_with_traceability(tmp_path):
     assert direct_input.item_code == "00001379"
     assert direct_input.coefficient == Decimal("2.5")
     assert direct_input.source_row == 12
+    assert direct_input.status == CompositionStatus.COM_PRECO
     assert nested.item_type == "COMPOSICAO"
+    assert nested.status == CompositionStatus.COM_CUSTO
     assert nested.item_code == "87321"
     assert nested.coefficient == Decimal("0.125")
     assert result.warnings == ()

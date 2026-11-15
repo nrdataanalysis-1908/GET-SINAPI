@@ -26,7 +26,37 @@ def test_load_rejects_duplicate_ise_natural_keys_with_null_regime(tmp_path):
     }
     write_jsonl(folder / "input_prices.jsonl", [duplicate, {**duplicate, "price": "10.50"}])
 
+    # Atualiza o manifesto para que o teste alcance a valida??o da chave natural.
+    import hashlib
+    import json
+
+    manifest_path = folder / "normalization-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    artifact_path = folder / "input_prices.jsonl"
+    payload = artifact_path.read_bytes()
+
+    artifact = next(
+        item for item in manifest["artifacts"]
+        if item["file"] == "input_prices.jsonl"
+    )
+    artifact["records"] = len(payload.splitlines())
+    artifact["size_bytes"] = len(payload)
+    artifact["sha256"] = hashlib.sha256(payload).hexdigest()
+
+    manifest_path.write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+
     with pytest.raises(ValueError, match="duplicate input-price natural key"):
         load_silver_reference(processed, reference="2026-09")
 
-    assert not (tmp_path / "data" / "getsinapi.sqlite3").exists()
+    # O arquivo SQLite pode existir porque o schema é inicializado antes da carga.
+    # O contrato relevante é o rollback integral: nenhuma linha pode permanecer.
+    import sqlite3
+
+    database = tmp_path / "data" / "getsinapi.sqlite3"
+    assert database.is_file()
+    with sqlite3.connect(database) as connection:
+        for table in ("source_references", "input_prices", "compositions", "composition_items"):
+            count = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            assert count == 0, f"A transação deixou registros em {table}."

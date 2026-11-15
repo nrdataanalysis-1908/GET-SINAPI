@@ -6,9 +6,11 @@ pode preservar tabelas, chaves naturais e semântica de carga.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +69,7 @@ CREATE TABLE IF NOT EXISTS composition_items (
     description TEXT NOT NULL,
     unit TEXT NOT NULL,
     coefficient TEXT NOT NULL,
+    status TEXT,
     source_file TEXT NOT NULL,
     source_sheet TEXT NOT NULL,
     source_row INTEGER NOT NULL,
@@ -90,18 +93,63 @@ def connect(database_path: str | Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
+    connection.execute("PRAGMA synchronous = NORMAL")
+    connection.execute("PRAGMA temp_store = MEMORY")
     return connection
+
+
+def _ensure_schema(connection: sqlite3.Connection) -> None:
+    connection.executescript(SCHEMA)
+
+    item_columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(composition_items)")
+    }
+    if "status" not in item_columns:
+        connection.execute("ALTER TABLE composition_items ADD COLUMN status TEXT")
+
+    # A auditoria GROUP BY é necessária somente na migração de bancos antigos.
+    # Executá-la em toda competência relê a tabela histórica inteira e torna a
+    # ingestão progressivamente mais lenta à medida que o banco cresce.
+    natural_index = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='uq_input_prices_natural_key'"
+    ).fetchone()
+    if natural_index is None:
+        duplicate = connection.execute(
+            """SELECT 1
+               FROM input_prices
+               GROUP BY reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
+               HAVING COUNT(*) > 1 LIMIT 1"""
+        ).fetchone()
+        if duplicate is not None:
+            raise ValueError(
+                "Chave natural de preços duplicada no banco existente; "
+                "reconcilie os registros antes de criar a restrição idempotente."
+            )
+        connection.execute(
+            """CREATE UNIQUE INDEX uq_input_prices_natural_key
+               ON input_prices(
+                   reference, code, uf, COALESCE(regime, ''), encargo_mode, table_type
+               )"""
+        )
 
 
 def initialize_database(database_path: str | Path) -> None:
     with connect(database_path) as connection:
-        connection.executescript(SCHEMA)
+        _ensure_schema(connection)
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
+    """Lê JSONL em fluxo, sem materializar a competência inteira na memória."""
     if not path.is_file():
         raise FileNotFoundError(f"Artefato Silver não encontrado: {path}")
-    records: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as stream:
         for line_number, line in enumerate(stream, start=1):
             if not line.strip():
@@ -112,14 +160,31 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"JSONL inválido em {path.name}, linha {line_number}.") from exc
             if not isinstance(record, dict):
                 raise TypeError(f"Registro JSONL deve ser objeto: {path.name}:{line_number}.")
-            records.append(record)
-    return records
+            yield record
+
+
+def _mapped_rows(
+    path: Path,
+    mapper,
+    *,
+    phase: str,
+    progress_callback: Callable[[str, int], None] | None = None,
+):
+    processed = 0
+    for record in _iter_jsonl(path):
+        yield mapper(record)
+        processed += 1
+        if progress_callback is not None and processed % 10_000 == 0:
+            progress_callback(phase, processed)
+    if progress_callback is not None and processed % 10_000:
+        progress_callback(phase, processed)
 
 
 def load_silver_reference(
     processed_dir: str | Path,
     *,
     reference: str,
+    progress_callback: Callable[[str, int], None] | None = None,
 ) -> dict[str, int | str]:
     """Carrega uma competência em transação única; repetir a carga não duplica."""
     if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", reference):
@@ -140,36 +205,64 @@ def load_silver_reference(
     if not isinstance(source_file, str) or not source_file.strip():
         raise ValueError("Manifesto Silver deve informar source_file não vazio.")
 
-    prices = _read_jsonl(base / "input_prices.jsonl")
-    compositions = _read_jsonl(base / "compositions.jsonl")
-    items = _read_jsonl(base / "composition_items.jsonl")
-    for collection in (prices, compositions, items):
-        if any(record.get("reference") != reference for record in collection):
-            raise ValueError("Há registros com competência divergente nos artefatos Silver.")
+    expected_files = {
+        "input_prices.jsonl", "compositions.jsonl", "composition_items.jsonl"
+    }
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise TypeError("Manifesto Silver sem inventário de artefatos válido.")
+    metadata = {entry.get("file"): entry for entry in artifacts if isinstance(entry, dict)}
+    if set(metadata) != expected_files or len(metadata) != len(artifacts):
+        raise ValueError("Inventário de artefatos Silver incompleto ou inconsistente.")
 
-    # SQLite UNIQUE constraints treat NULL values as distinct. Validate the
-    # natural key in Python so ISE rows (regime=None) cannot duplicate.
-    seen_price_keys: set[tuple[Any, ...]] = set()
-    for row_number, record in enumerate(prices, start=1):
-        key = (
-            record.get("reference"), record.get("code"), record.get("uf"),
-            record.get("regime"), record.get("encargo_mode"), record.get("table_type"),
-        )
-        try:
-            duplicate = key in seen_price_keys
-            seen_price_keys.add(key)
-        except TypeError as exc:
+    artifact_paths: dict[str, Path] = {}
+    counts: dict[str, int] = {}
+    for filename in sorted(expected_files):
+        path = base / filename
+        artifact = metadata[filename]
+        if not path.is_file():
+            raise FileNotFoundError(f"Artefato Silver não encontrado: {path}")
+        if path.stat().st_size != artifact.get("size_bytes"):
+            raise ValueError(f"Tamanho divergente no artefato Silver: {filename}.")
+
+        # Uma única passagem valida hash, JSON, competência e contagem.
+        # A unicidade da chave natural é garantida pelo índice UNIQUE do SQLite
+        # durante executemany, sem manter centenas de milhares de chaves em RAM.
+        digest = hashlib.sha256()
+        record_count = 0
+        with path.open("rb") as stream:
+            for line_number, raw_line in enumerate(stream, start=1):
+                digest.update(raw_line)
+                if not raw_line.strip():
+                    continue
+                try:
+                    record = json.loads(raw_line)
+                except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    raise ValueError(
+                        f"JSONL inválido em {filename}, linha {line_number}."
+                    ) from exc
+                if not isinstance(record, dict):
+                    raise TypeError(
+                        f"Registro JSONL deve ser objeto: {filename}:{line_number}."
+                    )
+                if record.get("reference") != reference:
+                    raise ValueError(
+                        f"Competência divergente em {filename}, linha {line_number}."
+                    )
+                record_count += 1
+
+        if digest.hexdigest() != artifact.get("sha256"):
+            raise ValueError(f"SHA-256 divergente no artefato Silver: {filename}.")
+        if record_count != artifact.get("records"):
             raise ValueError(
-                f"Invalid input-price natural key at record {row_number}."
-            ) from exc
-        if duplicate:
-            raise ValueError(
-                f"duplicate input-price natural key at record {row_number}: {key!r}"
+                f"Quantidade de registros divergente no artefato Silver: {filename}."
             )
+        artifact_paths[filename] = path
+        counts[filename.removesuffix(".jsonl")] = record_count
 
     database_path = Path(processed_dir).parent / "getsinapi.sqlite3"
     with connect(database_path) as connection:
-        connection.executescript(SCHEMA)
+        _ensure_schema(connection)
         connection.execute(
             """INSERT INTO source_references(reference, source_file)
                VALUES (?, ?)
@@ -188,52 +281,62 @@ def load_silver_reference(
                 reference, code, description, unit, status,
                 source_file, source_sheet, source_row
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
+            _mapped_rows(
+                artifact_paths["compositions.jsonl"],
+                lambda row: (
                     row["reference"], row["code"], row["description"], row["unit"],
-                    row.get("status"), row["source_file"], row["source_sheet"],
-                    row["source_row"],
-                )
-                for row in compositions
-            ],
+                    row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
+                ),
+                phase="compositions",
+                progress_callback=progress_callback,
+            ),
         )
         connection.executemany(
             """INSERT INTO composition_items(
                 reference, composition_code, item_code, item_type, description,
-                unit, coefficient, source_file, source_sheet, source_row
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
+                unit, coefficient, status, source_file, source_sheet, source_row
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            _mapped_rows(
+                artifact_paths["composition_items.jsonl"],
+                lambda row: (
                     row["reference"], row["composition_code"], row["item_code"],
-                    row["item_type"], row["description"], row["unit"],
-                    str(row["coefficient"]), row["source_file"], row["source_sheet"],
-                    row["source_row"],
-                )
-                for row in items
-            ],
+                    row["item_type"], row["description"], row["unit"], str(row["coefficient"]),
+                    row.get("status"), row["source_file"], row["source_sheet"], row["source_row"],
+                ),
+                phase="composition_items",
+                progress_callback=progress_callback,
+            ),
         )
-        connection.executemany(
-            """INSERT INTO input_prices(
-                reference, code, description, unit, uf, regime, encargo_mode,
-                table_type, price, status, price_origin, source_file,
-                source_sheet, source_row
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
-                    row["reference"], row["code"], row["description"], row["unit"],
-                    row["uf"], row.get("regime"), row["encargo_mode"],
-                    row["table_type"], row.get("price"), row["status"],
-                    row.get("price_origin"), row["source_file"], row["source_sheet"],
-                    row["source_row"],
-                )
-                for row in prices
-            ],
-        )
+        try:
+            connection.executemany(
+                """INSERT INTO input_prices(
+                    reference, code, description, unit, uf, regime, encargo_mode,
+                    table_type, price, status, price_origin, source_file,
+                    source_sheet, source_row
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                _mapped_rows(
+                    artifact_paths["input_prices.jsonl"],
+                    lambda row: (
+                        row["reference"], row["code"], row["description"], row["unit"],
+                        row["uf"], row.get("regime"), row["encargo_mode"], row["table_type"],
+                        row.get("price"), row["status"], row.get("price_origin"),
+                        row["source_file"], row["source_sheet"], row["source_row"],
+                    ),
+                    phase="input_prices",
+                    progress_callback=progress_callback,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            if "uq_input_prices_natural_key" in str(exc):
+                raise ValueError(
+                    "duplicate input-price natural key rejected by SQLite."
+                ) from exc
+            raise
 
         return {
             "reference": reference,
             "database_path": str(database_path),
-            "input_prices": len(prices),
-            "compositions": len(compositions),
-            "composition_items": len(items),
+            "input_prices": counts["input_prices"],
+            "compositions": counts["compositions"],
+            "composition_items": counts["composition_items"],
         }

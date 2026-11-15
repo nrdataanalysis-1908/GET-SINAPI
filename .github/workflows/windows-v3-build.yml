@@ -1,0 +1,92 @@
+name: GET-SINAPI V3 Windows Build
+
+on:
+  push:
+    branches:
+      - v3/development
+      - product/pulse-parity
+  workflow_dispatch:
+
+concurrency:
+  group: getsinapi-v3-windows-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-v3:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+      - name: Install Python package and build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install pyinstaller
+      - name: Verify package version
+        run: |
+          python -c "from importlib.metadata import version; from getsinapi import __version__; installed = version('get-sinapi'); assert installed == __version__, f'Package metadata {installed} differs from runtime {__version__}'; print(f'GET-SINAPI package version: {installed}')"
+      - name: Lint Python
+        run: python -m ruff check .
+      - name: Run backend tests
+        run: python -m pytest -q
+      - name: Check bootstrap import and syntax
+        run: python -c "from getsinapi.bootstrap import run_bootstrap; from getsinapi.collectors.history import discover_historical_xlsx_catalog; import desktop"
+      - name: Package GET-SINAPI V3
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onedir --noconsole --name GET-SINAPI-V3 --add-data "frontend/dist;frontend/dist" --collect-all fastapi --collect-all starlette --collect-all uvicorn --collect-all pandas --collect-all openpyxl --collect-all xlrd --collect-all sqlalchemy --collect-all requests --collect-all curl_cffi --collect-all bs4 --collect-all yaml --collect-all reportlab --hidden-import getsinapi.bootstrap desktop.py
+          Compress-Archive -Path "dist/GET-SINAPI-V3/*" -DestinationPath "GET-SINAPI-V3-Windows.zip" -Force
+      - name: Smoke test Windows desktop executable
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD "dist/GET-SINAPI-V3/GET-SINAPI-V3.exe"
+          if (-not (Test-Path $exe)) { throw "Executável não encontrado após o empacotamento: $exe" }
+          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              Start-Sleep -Seconds 1
+              if ($process.HasExited) {
+                throw "GET-SINAPI encerrou durante a inicialização. ExitCode=$($process.ExitCode)"
+              }
+              $ports = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+                Where-Object { $_.OwningProcess -eq $process.Id -and $_.LocalAddress -eq "127.0.0.1" } |
+                Select-Object -ExpandProperty LocalPort -Unique
+              foreach ($port in $ports) {
+                try {
+                  $page = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -TimeoutSec 2 -UseBasicParsing
+                  if ($page.StatusCode -eq 200 -and $page.Content -match '<div id="root"|id="root"') {
+                    $health = Invoke-WebRequest -Uri "http://127.0.0.1:$port/api/health" -TimeoutSec 5 -UseBasicParsing
+                    if ($health.StatusCode -eq 200) { $ready = $true; break }
+                  }
+                } catch { }
+              }
+              if ($ready) { break }
+            }
+            if (-not $ready) { throw "Smoke test falhou: frontend e API não ficaram disponíveis em 60 segundos." }
+            Write-Host "Smoke test aprovado: frontend e API responderam." -ForegroundColor Cyan
+          }
+          finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GET-SINAPI-V3-Windows
+          path: GET-SINAPI-V3-Windows.zip
+          if-no-files-found: error
+          retention-days: 14
