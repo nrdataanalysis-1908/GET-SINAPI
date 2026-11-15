@@ -1,7 +1,6 @@
 import pytest
 
-from pathlib import Path
-
+from getsinapi import __version__
 from getsinapi.cli import (
     _default_download_dir,
     _parse_multi_selection,
@@ -15,7 +14,7 @@ def test_header_displays_product_identity_and_copyright(capsys, monkeypatch):
     _show_header()
     output = capsys.readouterr().out
     assert "GET-SINAPI" in output
-    assert "VERSÃO 3.1.1" in output
+    assert f"VERSÃO {__version__}" in output
     assert "© 2026 Nadison Roberto | NR TECH" in output
     assert "LICENÇA     : MIT" in output
 
