@@ -48,7 +48,14 @@ def _ask_choice(prompt: str, options: dict[str, str], default: str | None = None
 def _export_menu(settings: Settings) -> int:
     from getsinapi.exporter import available_references, export_catalog
 
-    database = Path(os.getenv("GETSINAPI_DATABASE_PATH", str(settings.data_dir / "getsinapi.sqlite3")))
+    desktop_data = Path(os.getenv("LOCALAPPDATA", Path.home())) / "NRTech" / "GET-SINAPI-V3" / "data"
+    candidates = [
+        Path(os.getenv("GETSINAPI_DATABASE_PATH", "")) if os.getenv("GETSINAPI_DATABASE_PATH") else None,
+        desktop_data / "getsinapi.sqlite3",
+        settings.data_dir / "getsinapi.sqlite3",
+    ]
+    database = next((path for path in candidates if path and path.is_file()),
+                    desktop_data / "getsinapi.sqlite3" if os.name == "nt" else settings.data_dir / "getsinapi.sqlite3")
     if not database.is_file():
         print(f"Banco SINAPI não encontrado: {database}")
         print("Inicialize a base com os comandos download, extract, parse e load.")
@@ -115,7 +122,7 @@ def _export_menu(settings: Settings) -> int:
         {"1": "xlsx", "2": "csv", "3": "both"},
         "1",
     )
-    default_output = settings.data_dir / "exports"
+    default_output = database.parent / "exports"
     output_text = input(f"Pasta de destino [{default_output}]: ").strip()
     output_dir = Path(output_text).expanduser() if output_text else default_output
 
