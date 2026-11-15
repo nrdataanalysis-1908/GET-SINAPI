@@ -83,8 +83,10 @@ def _query(
 
 
 def available_references(database_path: Path) -> list[str]:
+    """Retorna as competências cadastradas, da mais recente para a mais antiga."""
     with sqlite3.connect(database_path) as connection:
         rows = connection.execute(
+            "SELECT reference FROM source_references ORDER BY reference DESC"
         ).fetchall()
     return [str(row[0]) for row in rows]
 
