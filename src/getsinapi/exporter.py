@@ -72,8 +72,8 @@ def _query(
     if search:
         term = "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         clauses.append(
-            "(code LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\\\' "
-            "OR composition_code LIKE ? ESCAPE '\\\\')"
+            "(code LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' "
+            "OR composition_code LIKE ? ESCAPE '\\')"
         )
         params.extend((term, term, term))
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
