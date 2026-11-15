@@ -6,7 +6,7 @@ import csv
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from openpyxl import Workbook
 
@@ -49,6 +49,7 @@ def _query(
     uf: str | None,
     categories: list[str],
     regime: str | None,
+    encargo_mode: str | None,
     search: str | None,
 ) -> tuple[str, tuple[Any, ...]]:
     clauses: list[str] = []
@@ -65,10 +66,13 @@ def _query(
     if regime:
         clauses.append("(regime = ? OR regime IS NULL)")
         params.append(regime)
+    if encargo_mode:
+        clauses.append("(encargo_mode = ? OR encargo_mode IS NULL)")
+        params.append(encargo_mode)
     if search:
         term = "%" + search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         clauses.append(
-            "(code LIKE ? ESCAPE '\\\\' OR description LIKE ? ESCAPE '\\\\' "
+            "(code LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\\\' "
             "OR composition_code LIKE ? ESCAPE '\\\\')"
         )
         params.extend((term, term, term))
@@ -95,6 +99,7 @@ def export_catalog(
     uf: str | None = None,
     categories: list[str] | None = None,
     regime: str | None = None,
+    encargo_mode: str | None = None,
     search: str | None = None,
 ) -> list[Path]:
     """Exporta categorias individualizadas e uma visão consolidada."""
@@ -111,7 +116,8 @@ def export_catalog(
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = output_dir / f"getsinapi_export_{stamp}"
     sql, params = _query(
-        references=references, uf=uf, categories=selected, regime=regime, search=search
+        references=references, uf=uf, categories=selected, regime=regime,
+        encargo_mode=encargo_mode, search=search
     )
     generated: list[Path] = []
 
