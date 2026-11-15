@@ -88,6 +88,36 @@ Não compartilhe o arquivo de banco ou o diretório de autenticação contendo d
 
 O launcher inicia a API e o frontend localmente, aguarda os serviços responderem e então abre a interface no navegador padrão.
 
+## Exportação em lote pelo terminal
+
+Além do executável desktop, o pacote Python disponibiliza a interface de terminal pelo comando `getsinapi`. O menu interativo permite selecionar:
+
+- Todas as categorias ou apenas insumos, composições e componentes.
+- Uma competência específica ou todas as competências carregadas.
+- Uma UF específica ou todas as UFs disponíveis.
+- Regime de desoneração e modalidade de encargos.
+- Pesquisa por código ou descrição.
+- Saída em Excel (.xlsx), CSV ou nos dois formatos.
+
+A exportação completa gera uma visão consolidada com os registros selecionados e arquivos/abas individualizados por categoria. No Excel, o consolidado e cada categoria ficam em abas próprias; no CSV, são gerados um arquivo consolidado e arquivos separados por categoria. Os CSVs usam UTF-8 com BOM e delimitador ponto e vírgula para melhor abertura no Excel em configurações regionais brasileiras.
+
+### Instalação e execução
+
+Após a publicação da versão que contém essa funcionalidade no PyPI:
+
+```powershell
+python -m pip install --upgrade get-sinapi
+getsinapi
+```
+
+Ou execute diretamente o menu de exportação:
+
+```powershell
+getsinapi export
+```
+
+O comando consulta a base SQLite local já carregada; não refaz o download dos pacotes oficiais a cada exportação. Na instalação desktop, utiliza o mesmo diretório de dados configurado pelo launcher. Em instalações independentes, defina `GETSINAPI_DATABASE_PATH` para apontar ao arquivo `getsinapi.sqlite3` correto. A funcionalidade de terminal não substitui nem altera o executável Windows.
+
 ## Desenvolvimento local
 
 Requisitos: Python 3.11+ e Node.js 20+.
