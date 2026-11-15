@@ -46,6 +46,38 @@ jobs:
         run: python -m pytest -q
       - name: Check bootstrap import and syntax
         run: python -c "from getsinapi.bootstrap import run_bootstrap; from getsinapi.collectors.history import discover_historical_xlsx_catalog; import desktop"
+      - name: Smoke test Windows desktop executable
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD "dist/GET-SINAPI-V3/GET-SINAPI-V3.exe"
+          $process = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              Start-Sleep -Seconds 1
+              if ($process.HasExited) {
+                throw "GET-SINAPI encerrou durante a inicialização. ExitCode=$($process.ExitCode)"
+              }
+              $ports = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+                Where-Object { $_.OwningProcess -eq $process.Id -and $_.LocalAddress -eq "127.0.0.1" } |
+                Select-Object -ExpandProperty LocalPort -Unique
+              foreach ($port in $ports) {
+                try {
+                  $page = Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -TimeoutSec 2 -UseBasicParsing
+                  if ($page.StatusCode -eq 200 -and $page.Content -match '<div id="root"|id="root"') {
+                    $health = Invoke-WebRequest -Uri "http://127.0.0.1:$port/api/health" -TimeoutSec 5 -UseBasicParsing
+                    if ($health.StatusCode -eq 200) { $ready = $true; break }
+                  }
+                } catch { }
+              }
+              if ($ready) { break }
+            }
+            if (-not $ready) { throw "Smoke test falhou: frontend e API não ficaram disponíveis em 60 segundos." }
+            Write-Host "Smoke test aprovado: frontend e API responderam." -ForegroundColor Cyan
+          }
+          finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
       - name: Package GET-SINAPI V3
         shell: pwsh
         run: |
