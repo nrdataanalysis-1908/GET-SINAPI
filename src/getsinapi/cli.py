@@ -45,15 +45,20 @@ def _paint(value: str, color: str) -> str:
 
 
 def _show_header() -> None:
+    """Exibe a identidade do produto e os avisos de titularidade no terminal."""
+    width = 68
     print()
-    print(_paint("╔══════════════════════════════════════════════════════════════════╗", CYAN))
-    print(_paint("║                       GET-SINAPI  |  CAIXA                       ║", CYAN))
-    print(_paint("║              PLATAFORMA DE DADOS E EXPORTAÇÃO SINAPI             ║", BLUE))
-    print(_paint("║                         NR TECH  •  v" + __version__.ljust(23) + "║", CYAN))
-    print(_paint("╚══════════════════════════════════════════════════════════════════╝", CYAN))
-    print("  FONTE OFICIAL : CAIXA ECONÔMICA FEDERAL")
-    print("  OPERAÇÃO      : Exportação local | Excel e CSV")
-    print(_paint("  © 2026 Nadison Roberto | NR TECH — Software sob licença MIT.", BLUE))
+    print(_paint("╔" + "═" * width + "╗", CYAN))
+    print(_paint("║" + "GET-SINAPI".center(width) + "║", CYAN))
+    print(_paint("║" + "PLATAFORMA DE DADOS SINAPI | CAIXA".center(width) + "║", BLUE))
+    print(_paint("║" + "NR TECH  •  TERMINAL PYTHON".center(width) + "║", CYAN))
+    print(_paint("║" + f"VERSÃO {__version__}".center(width) + "║", CYAN))
+    print(_paint("╚" + "═" * width + "╝", CYAN))
+    print("  FONTE       : Publicações oficiais da CAIXA / SINAPI")
+    print("  RECURSOS    : Consulta local • Excel • CSV • Exportação em lote")
+    print(_paint("  TITULAR     : © 2026 Nadison Roberto | NR TECH", BLUE))
+    print(_paint("  LICENÇA     : MIT — consulte o arquivo LICENSE", BLUE))
+    print()
 
 
 def _parse_multi_selection(answer: str, total: int) -> list[int] | None:
@@ -123,7 +128,8 @@ def _export_menu(settings: Settings) -> int:
         print("Inicialize a base com os comandos download, extract, parse e load.")
         return 2
 
-    _show_header()
+    print(_paint("  MENU DE EXPORTAÇÃO", BLUE))
+    print(_paint("  " + "─" * 66, CYAN))
     print(_paint("\n01  |  MODO DE EXPORTAÇÃO", BLUE))
     print("-" * 68)
     print("  [1] Exportar tudo — insumos, composições e componentes")
@@ -213,6 +219,7 @@ def _export_menu(settings: Settings) -> int:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    _show_header()
     settings = Settings.from_env()
 
     if args.command in (None, "export"):
