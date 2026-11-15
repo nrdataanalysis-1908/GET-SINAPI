@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import csv
 import sqlite3
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any
 
 from openpyxl import Workbook
