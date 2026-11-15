@@ -5,9 +5,70 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import platform
+import sys
 
 from getsinapi import __version__
 from getsinapi.config import Settings
+
+
+CYAN = "\\033[96m"
+BLUE = "\\033[94m"
+YELLOW = "\\033[93m"
+RESET = "\\033[0m"
+
+
+def _enable_ansi() -> bool:
+    """Habilita cores ANSI no terminal, com fallback seguro."""
+    if not sys.stdout.isatty():
+        return False
+    if platform.system() != "Windows":
+        return True
+    try:
+        import ctypes
+        import msvcrt
+
+        handle = msvcrt.get_osfhandle(sys.stdout.fileno())
+        mode = ctypes.c_uint()
+        kernel32 = ctypes.windll.kernel32
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
+ANSI_ENABLED = _enable_ansi()
+
+
+def _paint(value: str, color: str) -> str:
+    return f"{color}{value}{RESET}" if ANSI_ENABLED else value
+
+
+def _show_header() -> None:
+    print()
+    print(_paint("╔══════════════════════════════════════════════════════════════════╗", CYAN))
+    print(_paint("║                       GET-SINAPI  |  CAIXA                       ║", CYAN))
+    print(_paint("║              PLATAFORMA DE DADOS E EXPORTAÇÃO SINAPI             ║", BLUE))
+    print(_paint("║                         NR TECH  •  v" + __version__.ljust(23) + "║", CYAN))
+    print(_paint("╚══════════════════════════════════════════════════════════════════╝", CYAN))
+    print("  FONTE OFICIAL : CAIXA ECONÔMICA FEDERAL")
+    print("  OPERAÇÃO      : Exportação local | Excel e CSV")
+    print(_paint("  © 2026 Nadison Roberto | NR TECH — Todos os direitos reservados.", BLUE))
+
+
+def _parse_multi_selection(answer: str, total: int) -> list[int] | None:
+    """Converte números separados por vírgula em índices; None representa 'todas'."""
+    value = answer.strip().upper()
+    if not value or value == "A":
+        return None
+    tokens = [item.strip() for item in value.split(",")]
+    if any(not token.isdigit() for token in tokens):
+        raise ValueError("Use números separados por vírgula ou A para todas.")
+    indexes = [int(token) for token in tokens]
+    if any(index < 1 or index > total for index in indexes):
+        raise ValueError(f"Seleção fora do intervalo. Informe valores de 1 a {total}.")
+    return list(dict.fromkeys(indexes))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -140,7 +201,8 @@ def _export_menu(settings: Settings) -> int:
     )
     print(f"\nExportação concluída. Arquivos gerados: {len(generated)}")
     for path in generated:
-        print(f"  - {path}")
+        print(f"  • {path}")
+    print(_paint("\\nGET-SINAPI | CAIXA — NR TECH", BLUE))
     return 0
 
 
