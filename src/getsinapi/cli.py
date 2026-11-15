@@ -125,6 +125,20 @@ def _ask_choice(prompt: str, options: dict[str, str], default: str | None = None
         print("Opção inválida. Escolha uma das opções exibidas.")
 
 
+def _resolve_export_format(choice: str) -> str:
+    """Converte a opção numérica do menu para o formato aceito pelo exportador."""
+    formats = {"1": "xlsx", "2": "csv", "3": "both"}
+    try:
+        return formats[choice]
+    except KeyError as exc:
+        raise ValueError("Formato de exportação inválido.") from exc
+
+
+def _default_download_dir() -> Path:
+    """Retorna a pasta Downloads do usuário, sem solicitar um caminho manual."""
+    return Path.home() / "Downloads"
+
+
 def _export_menu(settings: Settings) -> int:
     from getsinapi.exporter import available_references, export_catalog
 
@@ -206,15 +220,15 @@ def _export_menu(settings: Settings) -> int:
     encargo_mode = None if encargo_choice == "1" else encargo_choice
 
     search = input("  Código ou descrição (ENTER para sem filtro): ").strip() or None
-    _section("05", "Formato e destino", "Os arquivos serão gravados na pasta informada.")
-    file_format = _ask_choice(
+    _section("05", "Formato e destino", "Os arquivos serão salvos automaticamente na pasta Downloads.")
+    format_choice = _ask_choice(
         "  Formato: [1] Excel (.xlsx) | [2] CSV | [3] Excel + CSV",
-        {"1": "xlsx", "2": "csv", "3": "both"},
+        {"1": "Excel (.xlsx)", "2": "CSV", "3": "Excel + CSV"},
         "1",
     )
-    default_output = database.parent / "exports"
-    output_text = input(f"  Pasta de destino [{default_output}]: ").strip()
-    output_dir = Path(output_text).expanduser() if output_text else default_output
+    file_format = _resolve_export_format(format_choice)
+    output_dir = _default_download_dir()
+    print(f"  Destino automático: {output_dir}")
 
     _section("06", "Processamento", "Preparando a exportação a partir da base SQLite local.")
     print(_paint("  PROCESSANDO...", YELLOW))
