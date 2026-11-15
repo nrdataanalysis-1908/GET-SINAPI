@@ -54,7 +54,7 @@ def _show_header() -> None:
     print(_paint("╚══════════════════════════════════════════════════════════════════╝", CYAN))
     print("  FONTE OFICIAL : CAIXA ECONÔMICA FEDERAL")
     print("  OPERAÇÃO      : Exportação local | Excel e CSV")
-    print(_paint("  © 2026 Nadison Roberto | NR TECH — Todos os direitos reservados.", BLUE))
+    print(_paint("  © 2026 Nadison Roberto | NR TECH — Software sob licença MIT.", BLUE))
 
 
 def _parse_multi_selection(answer: str, total: int) -> list[int] | None:
