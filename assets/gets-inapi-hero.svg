@@ -27,7 +27,7 @@
 </g>
 <path d="M805 188H735v-38h-55" stroke="#21D4FD" stroke-width="3" fill="none" opacity=".8"/>
 <circle cx="680" cy="150" r="5" fill="#21D4FD"/>
-<text x="74" y="130" fill="#60E6FF" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" letter-spacing="5">NR DATA ANALYSIS</text>
+<text x="74" y="130" fill="#60E6FF" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" letter-spacing="5">GET-SINAPI · ENGENHARIA DE CUSTOS</text>
 <text x="70" y="211" fill="#EAF7FF" font-family="Inter,Arial,sans-serif" font-size="76" font-weight="800" letter-spacing="-3">GET-SINAPI</text>
 <rect x="75" y="237" width="112" height="5" rx="2.5" fill="url(#glow)"/>
 <text x="75" y="281" fill="#B9D9EA" font-family="Inter,Arial,sans-serif" font-size="22">ENGENHARIA DE DADOS</text>
