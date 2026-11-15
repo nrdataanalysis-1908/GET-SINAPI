@@ -6,6 +6,7 @@ import csv
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from openpyxl import Workbook
@@ -78,14 +79,12 @@ def _query(
         params.extend((term, term, term))
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     sql = CATALOG_CTE + " SELECT " + ", ".join(COLUMNS) + " FROM catalog" + where
-    sql += " ORDER BY reference DESC, record_type, code, uf"
     return sql, tuple(params)
 
 
 def available_references(database_path: Path) -> list[str]:
     with sqlite3.connect(database_path) as connection:
         rows = connection.execute(
-            "SELECT reference FROM source_references ORDER BY reference DESC"
         ).fetchall()
     return [str(row[0]) for row in rows]
 
@@ -101,6 +100,7 @@ def export_catalog(
     regime: str | None = None,
     encargo_mode: str | None = None,
     search: str | None = None,
+    progress_callback: Callable[[str, int], None] | None = None,
 ) -> list[Path]:
     """Exporta categorias individualizadas e uma visão consolidada."""
     if file_format not in {"xlsx", "csv", "both"}:
@@ -140,6 +140,7 @@ def export_catalog(
             cursor = connection.execute(sql, params)
             counts = {key: 0 for key in sheets}
             sheet_parts = {key: 1 for key in sheets}
+            processed = 0
             while rows := cursor.fetchmany(2000):
                 for row in rows:
                     values = [row[column] for column in COLUMNS]
@@ -154,6 +155,9 @@ def export_catalog(
                             counts[key] = 0
                         sheets[key].append(values)
                         counts[key] += 1
+                    processed += 1
+                if progress_callback is not None:
+                    progress_callback("Excel", processed)
             xlsx_path = base.with_suffix(".xlsx")
             workbook.save(xlsx_path)
             generated.append(xlsx_path)
@@ -174,6 +178,7 @@ def export_catalog(
                     writer.writerow(COLUMNS)
                     writers[key] = writer
                 cursor = connection.execute(sql, params)
+                processed = 0
                 while rows := cursor.fetchmany(2000):
                     for row in rows:
                         values = [row[column] for column in COLUMNS]
@@ -181,6 +186,9 @@ def export_catalog(
                         category = str(row["record_type"])
                         if category in writers:
                             writers[category].writerow(values)
+                        processed += 1
+                    if progress_callback is not None:
+                        progress_callback("CSV", processed)
             finally:
                 for handle in handles.values():
                     handle.close()
