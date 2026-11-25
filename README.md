@@ -1,39 +1,39 @@
 <div align="center">
 
-<img src="assets/gets-inapi-hero.svg" alt="GET-SINAPI — plataforma privada para consulta e análise de custos SINAPI" width="100%">
+<img src="assets/gets-inapi-hero.svg" alt="GET-SINAPI — private platform for SINAPI cost research and analysis" width="100%">
 
 # GET-SINAPI
 
-### PLATAFORMA DESKTOP · CONSULTA SINAPI · ENGENHARIA DE CUSTOS
+### DESKTOP PLATFORM · SINAPI RESEARCH · COST ENGINEERING
 
-Aplicação para Windows que transforma publicações oficiais da CAIXA/SINAPI em consultas, análises, comparações e orçamentos rastreáveis. O projeto também disponibiliza uma ferramenta Python de exportação em lote pelo terminal.
+A Windows application that turns official CAIXA/SINAPI publications into traceable queries, analyses, comparisons, and budgets. The project also provides a Python command-line tool for batch exports.
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-1677C8?style=for-the-badge&logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/Interface-React%20%2B%20Vite-087BCE?style=for-the-badge&logo=react&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![SQLite](https://img.shields.io/badge/Banco-SQLite-21B8D5?style=for-the-badge&logo=sqlite&logoColor=white)
-![Windows](https://img.shields.io/badge/Sistema-Windows-1677C8?style=for-the-badge&logo=windows&logoColor=white)
+![SQLite](https://img.shields.io/badge/Database-SQLite-21B8D5?style=for-the-badge&logo=sqlite&logoColor=white)
+![Windows](https://img.shields.io/badge/System-Windows-1677C8?style=for-the-badge&logo=windows&logoColor=white)
 [![PyPI version](https://img.shields.io/pypi/v/get-sinapi?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/get-sinapi/)
 
-**Dados oficiais. Processamento local. Decisões de engenharia com rastreabilidade.**
+**Official data. Local processing. Traceable engineering decisions.**
 
-[PyPI](https://pypi.org/project/get-sinapi/) · [Releases](https://github.com/nrdataanalysis-1908/GET-SINAPI/releases) · [Código-fonte](https://github.com/nrdataanalysis-1908/GET-SINAPI)
+[PyPI](https://pypi.org/project/get-sinapi/) · [Releases](https://github.com/nrdataanalysis-1908/GET-SINAPI/releases) · [Source code](https://github.com/nrdataanalysis-1908/GET-SINAPI)
 
 </div>
 
 ---
 
-## Versão atual — 3.1.3
+## Current version — 3.1.3
 
-A versão 3.1.3 está publicada no PyPI e inclui melhorias na experiência de exportação pelo terminal:
+Version 3.1.3 is published on PyPI and includes improvements to the command-line export experience:
 
-- Exportação otimizada a partir da base SQLite local, com remoção da ordenação global desnecessária.
-- Exibição de progresso durante o processamento dos registros, em lotes.
-- Exportação para Excel (.xlsx), CSV ou ambos.
-- Geração de visão consolidada e arquivos/abas separados por categoria.
-- Menu interativo com seleção de competências, UF, regime, encargos e pesquisa.
+- Optimized export from the local SQLite database, removing unnecessary global sorting.
+- Progress reporting while records are processed in batches.
+- Export to Excel (.xlsx), CSV, or both.
+- Consolidated views and separate files/sheets by category.
+- Interactive menu for selecting reference periods, state, regime, labor-cost settings, and search criteria.
 
-Instalação/atualização:
+Install/update:
 
 ```powershell
 py -3.13 -m pip install --user --upgrade get-sinapi
@@ -41,118 +41,118 @@ getsinapi --version
 getsinapi
 ```
 
-Documentação da distribuição Python: [GET-SINAPI no PyPI](https://pypi.org/project/get-sinapi/).
+Python distribution documentation: [GET-SINAPI on PyPI](https://pypi.org/project/get-sinapi/).
 
-## Visão geral
+## Overview
 
-O GET-SINAPI reúne uma aplicação desktop Windows e uma ferramenta Python de terminal. A aplicação desktop integra uma interface React, uma API local FastAPI, processamento Python e persistência SQLite. O launcher inicia os serviços na própria máquina e abre a plataforma no navegador padrão; o usuário não precisa iniciar manualmente os servidores.
+GET-SINAPI combines a Windows desktop application and a Python command-line tool. The desktop application integrates a React interface, a local FastAPI service, Python processing, and SQLite persistence. The launcher starts the services on the same machine and opens the platform in the default browser; users do not need to start the servers manually.
 
-O produto utiliza o PulseSINAPI como referência de experiência funcional, mas mantém pipeline e regras próprias para ingestão, qualidade, cálculo e rastreabilidade dos dados oficiais.
+The product uses PulseSINAPI as a functional UX reference while maintaining its own pipeline and rules for ingestion, quality, calculation, and traceability of official data.
 
-> **Distribuição:** a aplicação desktop é distribuída como executável Windows. A ferramenta de exportação pelo terminal é disponibilizada separadamente como pacote Python no PyPI. A publicação do pacote Python não transforma a aplicação desktop em um serviço web público.
+> **Distribution:** the desktop application is distributed as a Windows executable. The command-line export tool is provided separately as a Python package on PyPI. Publishing the Python package does not turn the desktop application into a public web service.
 
-## Funcionalidades disponíveis na aplicação
+## Available application features
 
-- Dashboard com indicadores derivados da base efetivamente carregada.
-- Consulta de insumos com pesquisa, filtros e paginação.
-- Consulta de composições e detalhamento de componentes e coeficientes.
-- Comparação de preços por UF e competência, conforme cobertura disponível.
-- Cesta de orçamento e cálculo de totais.
-- Histórico das competências presentes na base local.
-- Relatórios e exportações disponibilizados pela versão atual.
-- Atualização da base com acompanhamento de estado e progresso.
-- Integridade, auditoria e informações de origem dos dados.
-- Gestão local de contas de acesso.
+- Dashboard with indicators derived from the database actually loaded.
+- Input-cost queries with search, filters, and pagination.
+- Composition queries and component/coefficient details.
+- Price comparison by state and reference period, subject to available coverage.
+- Budget basket and total calculations.
+- History of reference periods present in the local database.
+- Reports and exports provided by the current version.
+- Database updates with state and progress tracking.
+- Integrity, audit, and data-origin information.
+- Local access-account management.
 
-A disponibilidade de resultados depende das competências e dos arquivos oficiais efetivamente baixados, processados e validados. O sistema não deve apresentar dados ausentes como se fossem preços iguais a zero.
+Result availability depends on the reference periods and official files actually downloaded, processed, and validated. Missing data must never be presented as zero-valued prices.
 
-## Capturas e arquitetura
+## Screenshots and architecture
 
 <p align="center">
-  <img src="assets/gets-inapi-architecture.svg" alt="Arquitetura local do GET-SINAPI: launcher Windows, React, FastAPI, Python e SQLite" width="100%">
+  <img src="assets/gets-inapi-architecture.svg" alt="GET-SINAPI local architecture: Windows launcher, React, FastAPI, Python, and SQLite" width="100%">
 </p>
 
-A arquitetura da distribuição desktop é inteiramente local:
+The desktop distribution architecture is entirely local:
 
-| Componente | Tecnologia | Responsabilidade |
+| Component | Technology | Responsibility |
 |---|---|---|
-| Aplicação desktop | Python / PyInstaller | Inicialização e encerramento dos serviços |
-| Interface | React + Vite + TypeScript | Navegação, filtros, tabelas e visualizações |
-| API | FastAPI | Consultas, autenticação local e operações |
-| Processamento | Python | Coleta, validação, normalização e cálculos |
-| Persistência | SQLite | Dados SINAPI e informações locais |
-| Autenticação | PBKDF2 + sessão local | Login e controle de contas neste computador |
+| Desktop application | Python / PyInstaller | Service startup and shutdown |
+| Interface | React + Vite + TypeScript | Navigation, filters, tables, and visualizations |
+| API | FastAPI | Queries, local authentication, and operations |
+| Processing | Python | Collection, validation, normalization, and calculations |
+| Persistence | SQLite | SINAPI data and local information |
+| Authentication | PBKDF2 + local session | Login and account management on this computer |
 
-## Autenticação local
+## Local authentication
 
-O primeiro acesso permite configurar a conta administradora. O identificador pode ser o e-mail do usuário, acompanhado de uma senha com no mínimo 12 caracteres.
+The first access allows the administrator account to be configured. The identifier may be the user's email address, together with a password of at least 12 characters.
 
-- O primeiro usuário cadastrado recebe o perfil de administrador.
-- O administrador pode cadastrar outras contas locais pela área de gestão de acessos.
-- As senhas não são armazenadas em texto puro: o backend deriva o hash com PBKDF2-HMAC-SHA256 e salt individual.
-- A sessão local tem duração de até oito horas.
-- Os registros de autenticação são mantidos no arquivo `security/users.json`, dentro do diretório de dados da aplicação.
+- The first registered user receives the administrator role.
+- The administrator can register other local accounts through access management.
+- Passwords are not stored in plain text: the backend derives hashes with PBKDF2-HMAC-SHA256 and an individual salt.
+- Local sessions last up to eight hours.
+- Authentication records are stored in `security/users.json`, inside the application's data directory.
 
-**Limite importante:** as contas são locais e pertencem ao diretório de dados daquele computador. Cadastrar usuários em uma instalação não cria automaticamente contas nas instalações dos demais engenheiros. Ainda não há login centralizado, revogação remota, sincronização de contas ou compartilhamento central de orçamentos.
+**Important limitation:** accounts are local and belong to that computer's data directory. Registering users in one installation does not automatically create accounts in other engineers' installations. Centralized login, remote revocation, account synchronization, and centralized budget sharing are not yet available.
 
-## Armazenamento e diretório de dados
+## Storage and data directory
 
-A aplicação utiliza SQLite local. O diretório de dados pode ser definido por configuração de ambiente; na distribuição desktop, o launcher prepara o ambiente de execução e mantém logs locais.
+The application uses a local SQLite database. The data directory can be configured through environment settings; in the desktop distribution, the launcher prepares the runtime environment and maintains local logs.
 
-Não compartilhe o arquivo de banco ou o diretório de autenticação contendo dados operacionais sem avaliar previamente as implicações de segurança e consistência. Para vários engenheiros trabalharem com a mesma base e os mesmos orçamentos, será necessária uma camada de sincronização central — não faz parte do modelo atual.
+Do not share the database file or authentication directory containing operational data without first assessing security and consistency implications. Multiple engineers working with the same database and budgets will require a centralized synchronization layer, which is not part of the current model.
 
-## Instalação da aplicação desktop
+## Desktop application installation
 
-1. Baixe o pacote Windows disponibilizado na área de [Releases](https://github.com/nrdataanalysis-1908/GET-SINAPI/releases) ou no artefato de build autorizado.
-2. Extraia o ZIP em uma pasta local.
-3. Execute `GET-SINAPI-V3.exe`.
-4. No primeiro acesso, configure o usuário administrador e a senha.
-5. Nos acessos seguintes, entre com as credenciais locais.
+1. Download the Windows package from [Releases](https://github.com/nrdataanalysis-1908/GET-SINAPI/releases) or an authorized build artifact.
+2. Extract the ZIP file to a local folder.
+3. Run `GET-SINAPI-V3.exe`.
+4. On first access, configure the administrator account and password.
+5. On subsequent accesses, sign in with the local credentials.
 
-O launcher inicia a API e o frontend localmente, aguarda os serviços responderem e então abre a interface no navegador padrão.
+The launcher starts the API and frontend locally, waits for the services to respond, and then opens the interface in the default browser.
 
-## Exportação em lote pelo terminal
+## Command-line batch export
 
-O pacote Python `get-sinapi` disponibiliza a interface de terminal pelo comando `getsinapi`. O menu interativo permite selecionar:
+The Python package `get-sinapi` provides the terminal interface through the `getsinapi` command. The interactive menu allows users to select:
 
-- Todas as categorias ou apenas insumos, composições e componentes.
-- Uma competência específica ou todas as competências carregadas.
-- Uma UF específica ou todas as UFs disponíveis.
-- Regime de desoneração e modalidade de encargos.
-- Pesquisa por código ou descrição.
-- Saída em Excel (.xlsx), CSV ou nos dois formatos.
+- All categories or only inputs, compositions, and components.
+- A specific reference period or all loaded periods.
+- A specific state or all available states.
+- Tax relief regime and labor-cost settings.
+- Search by code or description.
+- Excel (.xlsx), CSV, or both output formats.
 
-A exportação completa gera uma visão consolidada com os registros selecionados e arquivos/abas individualizados por categoria. No Excel, o consolidado e cada categoria ficam em abas próprias; no CSV, são gerados um arquivo consolidado e arquivos separados por categoria. Os CSVs usam UTF-8 com BOM e delimitador ponto e vírgula para melhor abertura no Excel em configurações regionais brasileiras.
+A full export generates a consolidated view of the selected records and individual files/sheets by category. In Excel, the consolidated view and each category use separate sheets; in CSV, a consolidated file and category-specific files are generated. CSV files use UTF-8 with BOM and semicolon delimiters for easier opening in Excel under Brazilian regional settings.
 
-### Instalação e execução
+### Installation and execution
 
-A versão 3.1.3 está disponível no PyPI:
+Version 3.1.3 is available on PyPI:
 
 ```powershell
 py -3.13 -m pip install --user --upgrade get-sinapi
 getsinapi
 ```
 
-Para abrir diretamente o fluxo de exportação:
+To open the export workflow directly:
 
 ```powershell
 getsinapi export
 ```
 
-O comando consulta a base SQLite local já carregada; não refaz o download dos pacotes oficiais a cada exportação. Na instalação desktop, utiliza o mesmo diretório de dados configurado pelo launcher. Em instalações independentes, defina `GETSINAPI_DATABASE_PATH` para apontar ao arquivo `getsinapi.sqlite3` correto. A funcionalidade de terminal não substitui nem altera o executável Windows.
+The command reads the already-loaded local SQLite database; it does not download official packages again for every export. In the desktop installation, it uses the same data directory configured by the launcher. In standalone installations, set `GETSINAPI_DATABASE_PATH` to the correct `getsinapi.sqlite3` file. The terminal feature does not replace or modify the Windows executable.
 
-### Comportamento da exportação
+### Export behavior
 
-- A leitura é realizada em lotes para controlar o consumo de memória.
-- O terminal informa a quantidade de registros processados durante a geração dos arquivos.
-- A exportação usa a base SQLite local e respeita os filtros selecionados.
-- Os arquivos são direcionados à pasta Downloads do usuário.
+- Data is read in batches to control memory consumption.
+- The terminal reports the number of records processed while files are generated.
+- Export uses the local SQLite database and respects the selected filters.
+- Files are saved to the user's Downloads folder.
 
-## Desenvolvimento local
+## Local development
 
-Requisitos: Python 3.11+ e Node.js 20+.
+Requirements: Python 3.11+ and Node.js 20+.
 
-### Serviço de aplicação
+### Application service
 
 ```powershell
 py -3.11 -m venv .venv
@@ -163,13 +163,13 @@ $env:GETSINAPI_DATABASE_PATH = "data/getsinapi.sqlite3"
 uvicorn getsinapi.api.main:app --reload
 ```
 
-API local: `http://127.0.0.1:8000`  
+Local API: `http://127.0.0.1:8000`  
 Health check: `http://127.0.0.1:8000/api/health`  
-Documentação OpenAPI: `http://127.0.0.1:8000/docs`
+OpenAPI documentation: `http://127.0.0.1:8000/docs`
 
 ### Interface
 
-Em outro terminal:
+In another terminal:
 
 ```powershell
 cd frontend
@@ -177,61 +177,61 @@ npm install
 npm run dev
 ```
 
-Frontend de desenvolvimento: `http://localhost:5173`. O Vite encaminha as chamadas `/api` para a API local.
+Development frontend: `http://localhost:5173`. Vite forwards `/api` requests to the local API.
 
-### Qualidade e testes
+### Quality and tests
 
 ```powershell
 ruff check .
 pytest -v
 ```
 
-O workflow Windows compila o frontend, empacota a aplicação com PyInstaller e executa um smoke test da interface e do endpoint de saúde antes de publicar o artefato.
+The Windows workflow builds the frontend, packages the application with PyInstaller, and runs a UI and health-endpoint smoke test before publishing the artifact.
 
-## Pipeline e integridade dos dados
+## Data pipeline and integrity
 
-| Camada | Responsabilidade |
+| Layer | Responsibility |
 |---|---|
-| Bronze | Preservação dos pacotes oficiais recebidos |
-| Staging | Extração controlada e inventário dos arquivos |
-| Silver | Normalização, tipagem e validação |
-| Gold | Estruturas consolidadas para consulta e análise |
-| Aplicação | Consulta, comparação, cálculo e orçamento |
+| Bronze | Preservation of received official packages |
+| Staging | Controlled extraction and file inventory |
+| Silver | Normalization, typing, and validation |
+| Gold | Consolidated structures for queries and analysis |
+| Application | Querying, comparison, calculation, and budgeting |
 
-Princípios:
+Principles:
 
-- Publicações oficiais da CAIXA como fonte de referência.
-- Nenhum dado sintético em produção.
-- Distinção entre zero publicado, valor ausente e falha de extração.
-- Preservação de competência, UF, regime e origem.
-- Valores monetários e coeficientes tratados com precisão decimal.
-- Atualizações incrementais e idempotentes, preservando o histórico válido.
-- Rastreabilidade até publicação, arquivo e referência de origem, conforme metadados disponíveis.
+- Official CAIXA publications as the reference source.
+- No synthetic data in production.
+- Distinguish published zero, missing value, and extraction failure.
+- Preserve reference period, state, regime, and origin.
+- Monetary values and coefficients handled with decimal precision.
+- Incremental and idempotent updates that preserve valid history.
+- Traceability back to publication, file, and source reference, according to available metadata.
 
-## Cobertura e limitações conhecidas
+## Coverage and known limitations
 
-- A cobertura histórica depende dos pacotes efetivamente publicados, coletados e processados.
-- Os layouts legados anteriores a 2025 exigem tratamento específico; não se deve presumir cobertura histórica integral.
-- O armazenamento da aplicação desktop é SQLite local.
-- A autenticação é local, sem provedor externo.
-- Não há sincronização de dados ou orçamentos entre computadores.
-- A distribuição desktop atual é Windows; uma versão web hospedada não faz parte do escopo vigente.
+- Historical coverage depends on packages actually published, collected, and processed.
+- Legacy layouts before 2025 require specific handling; full historical coverage must not be assumed.
+- The desktop application's storage is local SQLite.
+- Authentication is local, with no external provider.
+- Data and budgets are not synchronized between computers.
+- The current desktop distribution is for Windows; a hosted web version is outside the current scope.
 
-## Stack tecnológica
+## Technology stack
 
 Python · React · TypeScript · Vite · FastAPI · SQLite · SQLAlchemy · Pandas · Pytest · Ruff · PyInstaller · GitHub Actions.
 
-## Licença e dados de terceiros
+## License and third-party data
 
-O código-fonte é distribuído sob a licença MIT, conforme o arquivo [LICENSE](LICENSE). Essa licença não altera os direitos, termos de uso ou atribuição aplicáveis às publicações, marcas e dados de terceiros, incluindo os dados oficiais do SINAPI.
+The source code is distributed under the MIT license, as described in [LICENSE](LICENSE). This license does not change the rights, terms of use, or attribution requirements applicable to third-party publications, trademarks, and data, including official SINAPI data.
 
 ---
 
 <div align="center">
 
 **GET-SINAPI**  
-NR TECH · Engenharia de Dados e Custos
+NR TECH · Data and Cost Engineering
 
-*Precisão na origem. Consistência no processamento. Confiança na consulta.*
+*Accuracy at the source. Consistency in processing. Confidence in every query.*
 
 </div>
